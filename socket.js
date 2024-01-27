@@ -256,133 +256,132 @@ io.on('connect', async (socket) => {
 
   socket.on('removeQueue', async (data_) => {
     console.log('REMOVE QUE LISTEN ============================ : ', data_);
-    callMatchAvailable
-    // const user = await User.findById(id);
-    // const finalData = JSON.parse(data_);
-    // const indexToRemove = userToUserCallIds.findIndex(
-    //   (call) => call._id?.toString() === finalData?.userId
-    // );
-    // if (indexToRemove !== -1) {
-    //   console.log(
-    //     'userToUserCallIds index remove que ============================= ',
-    //     indexToRemove
-    //   );
-    //   userToUserCallIds.splice(indexToRemove, 1); //if already caller is exist then remove
-    // }
+    const user = await User.findById(id);
+    const finalData = JSON.parse(data_);
+    const indexToRemove = userToUserCallIds.findIndex(
+      (call) => call._id?.toString() === finalData?.userId
+    );
+    if (indexToRemove !== -1) {
+      console.log(
+        'userToUserCallIds index remove que ============================= ',
+        indexToRemove
+      );
+      userToUserCallIds.splice(indexToRemove, 1); //if already caller is exist then remove
+    }
 
-    // const history = await History.findById(user.recentConnectionId);
-    // let connectedHost;
-    // if (history?.hostId != null) {
-    //   connectedHost = await Host.findOne({
-    //     recentConnectionId: user?.recentConnectionId,
-    //   });
-    // } else {
-    //   connectedHost = await User.findOne({
-    //     _id: { $ne: user._id },
-    //     recentConnectionId: user?.recentConnectionId,
-    //   });
-    // }
-    // if (connectedHost) {
-    //   if (history?.isPrivate) {
-    //     connectedHost.isBusy = true;
-    //   } else {
-    //     connectedHost.isBusy = false;
-    //     connectedHost.recentConnectionId = null;
-    //   }
-    //   await connectedHost.save();
-    //   console.log(
-    //     'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
-    //     connectedHost._id.toString()
-    //   );
+    const history = await History.findById(user.recentConnectionId);
+    let connectedHost;
+    if (history?.hostId != null) {
+      connectedHost = await Host.findOne({
+        recentConnectionId: user?.recentConnectionId,
+      });
+    } else {
+      connectedHost = await User.findOne({
+        _id: { $ne: user._id },
+        recentConnectionId: user?.recentConnectionId,
+      });
+    }
+    if (connectedHost) {
+      if (history?.isPrivate) {
+        connectedHost.isBusy = true;
+      } else {
+        connectedHost.isBusy = false;
+        connectedHost.recentConnectionId = null;
+      }
+      await connectedHost.save();
+      console.log(
+        'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+        connectedHost._id.toString()
+      );
 
-    //   socket
-    //     .in('globalRoom:' + connectedHost._id.toString())
-    //     .emit('callCancel');
-    // }
-    // if (user) {
-    //   if (history?.isPrivate) {
-    //     user.isBusy = true;
-    //   } else {
-    //     user.recentConnectionId = null;
-    //     user.isBusy = false;
-    //   }
-    //   await user?.save();
-    // }
+      socket
+        .in('globalRoom:' + connectedHost._id.toString())
+        .emit('callCancel');
+    }
+    if (user) {
+      if (history?.isPrivate) {
+        user.isBusy = true;
+      } else {
+        user.recentConnectionId = null;
+        user.isBusy = false;
+      }
+      await user?.save();
+    }
 
-    // queue.active(async function (err, ids) {
-    //   console.log('active Ids : ', ids);
-    //   await new Promise((resolve, reject) => {
-    //     ids.forEach(function (id) {
-    //       // console.log("active job : ", id);
-    //       kue.Job.get(id, function (err, job) {
-    //         // console.log("active job: ", job.data);
-    //         if (
-    //           (job.type === 'new-call-random' ||
-    //             job.type === 'Pepsi-user-user-call-random') &&
-    //           job.data.userId === finalData.userId
-    //         ) {
-    //           console.log('remove thava aavyu ');
-    //           job.remove((error) => {
-    //             if (error) {
-    //               console.log('error on remove job ', error);
-    //               return;
-    //             } else {
-    //               console.log('Job Remove Successfully......');
-    //               queueProcess.stopQueueProcess = true;
-    //               console.log(
-    //                 'Job Remove Successfully......',
-    //                 queueProcess.stopQueueProcess
-    //               );
-    //             }
-    //             randomRemove.stop = true;
-    //           });
-    //         }
-    //       });
-    //     });
-    //     resolve();
-    //   });
-    // });
-    // queue.inactive(async function (err, ids) {
-    //   console.log('inactive Ids : ', ids);
-    //   await new Promise((resolve, reject) => {
-    //     ids.forEach(function (id) {
-    //       // console.log("inactive job : ", id);
-    //       kue.Job.get(id, function (err, job) {
-    //         // console.log("inactive job: ", job.data);
-    //         if (
-    //           (job.type === 'new-call-random' ||
-    //             job.type === 'Pepsi-user-user-call-random') &&
-    //           job.data.userId === finalData.userId
-    //         ) {
-    //           console.log('remove thava aavyu ');
-    //           job.remove(() => {
-    //             randomRemove.stop = true;
-    //           });
-    //         }
-    //       });
-    //     });
-    //     resolve();
-    //   });
-    // });
-    // if (connectedHost && !history?.isPrivate) {
-    //   console.log(
-    //     'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
-    //     connectedHost._id.toString()
-    //   );
-    //   socket
-    //     .in('globalRoom:' + connectedHost._id.toString())
-    //     .emit('callCancel');
-    // }
-    // console.log(
-    //   'removeQueue : host : ',
-    //   connectedHost?.isBusy,
-    //   connectedHost?.recentConnectionId
-    // );
-    // console.log(
-    //   'removeQueue : user : ',
-    //   user?.isBusy,
-    //   user?.recentConnectionId
-    // );
+    queue.active(async function (err, ids) {
+      console.log('active Ids : ', ids);
+      await new Promise((resolve, reject) => {
+        ids.forEach(function (id) {
+          // console.log("active job : ", id);
+          kue.Job.get(id, function (err, job) {
+            // console.log("active job: ", job.data);
+            if (
+              (job.type === 'new-call-random' ||
+                job.type === 'Pepsi-user-user-call-random') &&
+              job.data.userId === finalData.userId
+            ) {
+              console.log('remove thava aavyu ');
+              job.remove((error) => {
+                if (error) {
+                  console.log('error on remove job ', error);
+                  return;
+                } else {
+                  console.log('Job Remove Successfully......');
+                  queueProcess.stopQueueProcess = true;
+                  console.log(
+                    'Job Remove Successfully......',
+                    queueProcess.stopQueueProcess
+                  );
+                }
+                randomRemove.stop = true;
+              });
+            }
+          });
+        });
+        resolve();
+      });
+    });
+    queue.inactive(async function (err, ids) {
+      console.log('inactive Ids : ', ids);
+      await new Promise((resolve, reject) => {
+        ids.forEach(function (id) {
+          // console.log("inactive job : ", id);
+          kue.Job.get(id, function (err, job) {
+            // console.log("inactive job: ", job.data);
+            if (
+              (job.type === 'new-call-random' ||
+                job.type === 'Pepsi-user-user-call-random') &&
+              job.data.userId === finalData.userId
+            ) {
+              console.log('remove thava aavyu ');
+              job.remove(() => {
+                randomRemove.stop = true;
+              });
+            }
+          });
+        });
+        resolve();
+      });
+    });
+    if (connectedHost && !history?.isPrivate) {
+      console.log(
+        'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+        connectedHost._id.toString()
+      );
+      socket
+        .in('globalRoom:' + connectedHost._id.toString())
+        .emit('callCancel');
+    }
+    console.log(
+      'removeQueue : host : ',
+      connectedHost?.isBusy,
+      connectedHost?.recentConnectionId
+    );
+    console.log(
+      'removeQueue : user : ',
+      user?.isBusy,
+      user?.recentConnectionId
+    );
   });
 
   // Live Stream Comment
