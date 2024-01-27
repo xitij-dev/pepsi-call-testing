@@ -38,7 +38,7 @@ exports.match = async (req, res) => {
     }
 
     const user = await User.findById(req?.query?.userId);
-
+    console.log('user ==================', user);
     if (!user) {
       return res
         .status(200)
@@ -81,7 +81,7 @@ exports.match = async (req, res) => {
       //   });
       // }
       const callMatchAvailable = await CallMatchUser.find({ isBusy: false });
-      if (callMatchAvailable?.length >= 0) {
+      if (callMatchAvailable?.length > 0) {
         const randomIndex = Math.floor(
           Math.random() * callMatchAvailable.length
         );
@@ -90,6 +90,9 @@ exports.match = async (req, res) => {
         const user2 = await User.findById(
           callMatchAvailable[randomIndex]?.userId
         );
+
+        console.log('user2 :', user2);
+        console.log('user ==================', user?._id);
         makeCallHistory(user, user2);
       } else {
         await new CallMatchUser({
@@ -100,13 +103,14 @@ exports.match = async (req, res) => {
         let timeoutId, count;
         timeoutId = setTimeout(async () => {
           count += 2;
-          await this.randomMatchUserAgain({
-            userId: req?.query?.userId,
-            type: 'both',
-            count: count,
-            uniqueId: user?.uniqueId,
-            timeoutId: timeoutId, // Pass the timeoutId as a parameter
-          });
+          console.log('setTimeoUt =========');
+          // await this.randomMatchUserAgain({
+          //   userId: req?.query?.userId,
+          //   type: 'both',
+          //   count: count,
+          //   uniqueId: user?.uniqueId,
+          //   timeoutId: timeoutId, // Pass the timeoutId as a parameter
+          // });
         }, 2000);
 
         // const job = queue
@@ -422,8 +426,9 @@ exports.randomMatchUser = async (userId, type, count, uniqueId, id, done) => {
           ? socket2[0].join(outgoing._id)
           : console.log('socket1 not able to emit');
         // emit in call id room
-        console.log('callConnect ===========');
-
+        console.log('callConnect ===========', data);
+        const socketemit = await io.in(outgoing._id).fetchSockets();
+        console.log('socket  ===========', socketemit?.length);
         io.in(outgoing._id).emit('userUserCall', data, null);
         return true;
       }
@@ -496,13 +501,18 @@ exports.randomMatchUserAgain = async (userId, type, count, uniqueId) => {
         .in(`globalRoom:${userId}`)
         .emit('callRequest', null, 'No one is online');
     } else {
-      const callMatchAvailable = await CallMatchUser.find({ isBusy: false });
-      if (callMatchAvailable?.length >= 0) {
+      const callMatchAvailable = await CallMatchUser.find({
+        $ne: { userId: userId },
+        isBusy: false,
+      });
+      if (callMatchAvailable?.length > 0) {
         const randomIndex = Math.floor(
           Math.random() * callMatchAvailable.length
         );
         const user2Id = callMatchAvailable[randomIndex].userId;
         await callMatchAvailable[randomIndex].deleteOne();
+        CallMatchUser.deleteOne({ userId: userId });
+
         const user = await User.findById(userId);
         const user2 = await User.findById(user2Id);
         makeCallHistory(user, user2);
@@ -512,6 +522,11 @@ exports.randomMatchUserAgain = async (userId, type, count, uniqueId) => {
 };
 
 const makeCallHistory = async (user, user2) => {
+  console.log('makeCallHistory api call');
+  const socket1user = await io
+    .in(`globalRoom:${user._id.toString()}`)
+    .fetchSockets();
+  console.log('socket1user ', socket1user?.length);
   const outgoing = new History();
   outgoing.userId = user._id; // call user id
   outgoing.type = 3;
@@ -522,6 +537,7 @@ const makeCallHistory = async (user, user2) => {
   outgoing.caller = 'user';
   outgoing.isRandom = true;
   await outgoing.save();
+  console.log('outgoing :', outgoing);
 
   // Busy both user first
   user.isBusy = true;
@@ -554,8 +570,7 @@ const makeCallHistory = async (user, user2) => {
     callId: outgoing._id,
     callType: 'random',
     type: 'user',
-    jobId: id,
-    uniqueId,
+    jobId: 1212,
   };
 
   await History.updateOne(
@@ -577,13 +592,15 @@ const makeCallHistory = async (user, user2) => {
     .fetchSockets();
 
   socket1?.length
-    ? socket1[0].join(outgoing._id)
+    ? socket1[0].join(outgoing._id?.toString())
     : console.log('socket1 not able to emit');
   socket2?.length
-    ? socket2[0].join(outgoing._id)
+    ? socket2[0].join(outgoing._id?.toString())
     : console.log('socket1 not able to emit');
   // emit in call id room
   console.log('callConnect ===========');
+  CallMatchUser.deleteOne({ userId: outgoing.userId });
+  CallMatchUser.deleteOne({ userId: outgoing.otherUserId });
 
-  io.in(outgoing._id).emit('userUserCall', data, null);
+  io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
 };
