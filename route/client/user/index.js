@@ -1,0 +1,42 @@
+const express = require('express');
+
+const route = express.Router();
+const userRoute = require('./user');
+const feedbackRoute = require('./feedback');
+const blockRoute = require('./block');
+const hostRoute = require('./host');
+const giftRoute = require('./gift');
+const notificaitonRoute = require('./notificaiton');
+const historyRoute = require('./history');
+const giftCategoryRoute = require('./giftcategory');
+const sotryViewRoute = require('./storyView');
+const vipPlanRoute = require('./vipPlan');
+const sotryRoute = require('./story');
+const countryRouter = require('./country');
+const vipPlanHistoryRouter = require('./vipPlanHistory');
+const userStoryViewRoute = require('./userStoyView');
+const liveUserRoute = require('./liveUser');
+const coinPlanRoute = require('./coinPlan');
+const reportRoute = require('./report');
+const randomRouter = require('./random');
+
+route.use('/', userRoute);
+route.use('/feedback', feedbackRoute);
+route.use('/block', blockRoute);
+route.use('/host', hostRoute);
+route.use('/gift', giftRoute);
+route.use('/history', historyRoute);
+route.use('/giftCategory', giftCategoryRoute);
+route.use('/coinPlan', coinPlanRoute);
+route.use('/storyView', sotryViewRoute);
+route.use('/vipPlan', vipPlanRoute);
+route.use('/notification', notificaitonRoute);
+route.use('/story', sotryRoute);
+route.use('/liveUser', liveUserRoute);
+route.use('/vipPlanHistory', vipPlanHistoryRouter);
+route.use('/userStoryView', userStoryViewRoute);
+route.use('/country', countryRouter);
+route.use('/report', reportRoute);
+route.use('/random', randomRouter);
+
+module.exports = route;
