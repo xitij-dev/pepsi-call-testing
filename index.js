@@ -38,8 +38,8 @@ app.get('/*', function (req, res) {
 
 global.queue = kue.createQueue({
   redis: {
-    prefix: 'PEPSI-Call',
-    db: 12,
+    prefix: 'PEPSI-Call-TESTING',
+    db: 13,
   },
 });
 
@@ -58,7 +58,7 @@ require('./socket');
 
 app.use('/kue-api', kue.app);
 
-queue.process('Pepsi-call-random', async function (job, done) {
+queue.process('Pepsi-call-random-testing', async function (job, done) {
   try {
     console.log('data when random call in process ', job.data);
 
@@ -111,7 +111,7 @@ queue.process('Pepsi-call-random', async function (job, done) {
   }
 });
 
-queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
+queue.process('Pepsi-user-user-call-random-testing', 2, async function (job, done) {
   try {
     const user = await User.findById(job.data.userId);
     userToUserCallIds.push(user);
