@@ -16,7 +16,7 @@ app.use(express.json());
 app.listen();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
-const kue = require('kue');
+global.kue = require('kue');
 const http = require('http');
 const queueProcess = require('./util/stopQueueProcess');
 const db = require('./middleware/conectMongo');
@@ -30,6 +30,7 @@ const { agencyWiseHostSettlement } = require('./services/agencyWiseSettlement');
 const User = require('./model/user');
 // const { firebaseConfig } = require('./middleware/fireBase');
 
+app.use('/kue-api', kue.app);
 app.use('/', route);
 
 app.get('/*', function (req, res) {
@@ -39,7 +40,7 @@ app.get('/*', function (req, res) {
 global.queue = kue.createQueue({
   redis: {
     prefix: 'PEPSI-Call-TESTING',
-    db: 13,
+    db: 14,
   },
 });
 
@@ -56,11 +57,13 @@ global.io = require('socket.io')(server, {
 
 require('./socket');
 
-app.use('/kue-api', kue.app);
-
 queue.process('Pepsi-call-random-testing', async function (job, done) {
   try {
-    console.log('data when random call in process ', job.data);
+    console.log(
+      'data when random call in process ==========',
+      job.data,
+      job.id
+    );
 
     kue.Job.rangeByType(
       'Pepsi-call-random',
@@ -111,29 +114,33 @@ queue.process('Pepsi-call-random-testing', async function (job, done) {
   }
 });
 
-queue.process('Pepsi-user-user-call-random-testing', 2, async function (job, done) {
-  try {
-    const user = await User.findById(job.data.userId);
-    userToUserCallIds.push(user);
-    console.log('data when random call in process ', job.data);
-    console.log('data  job.data.count === QUE  ', job.data.count);
-    console.log(
-      'userToUserCallIds in index.js ========= QUE ',
-      userToUserCallIds?.length
-    );
+queue.process(
+  'Pepsi-user-user-call-random',
+  2,
+  async function (job, done) {
+    try {
+      const user = await User.findById(job.data.userId);
+      userToUserCallIds.push(user);
+      console.log('data when random call in process ', job.data);
+      console.log('data  job.data.count === QUE  ', job.data.count);
+      console.log(
+        'userToUserCallIds in index.js ========= QUE ',
+        userToUserCallIds?.length
+      );
 
-    await randomMatchUser(
-      job.data.userId,
-      job.data.type,
-      job.data.count,
-      job.data.uniqueId,
-      job.id,
-      done
-    );
-  } catch (error) {
-    console.log(error);
+      await randomMatchUser(
+        job.data.userId,
+        job.data.type,
+        job.data.count,
+        job.data.uniqueId,
+        job.id,
+        done
+      );
+    } catch (error) {
+      console.log(error);
+    }
   }
-});
+);
 
 // eslint-disable-next-line no-undef
 queue.process('Pepsi-Call-User-Host-Call', async (job, done) => {

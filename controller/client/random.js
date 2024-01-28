@@ -53,7 +53,7 @@ exports.match = async (req, res) => {
 
     if (req?.query?.type === 'female') {
       const job = queue
-        .create('Pepsi-call-random', {
+        .create('Pepsi-call-random-testing', {
           userId: req?.query?.userId,
           type: req?.query?.type,
           count: 0,
@@ -80,6 +80,21 @@ exports.match = async (req, res) => {
       //     uniqueId: `${user.name}:${req?.query?.userId}`,
       //   });
       // }
+      const job = queue
+        .create('Pepsi-user-user-call-random-testing', {
+          userId: req?.query?.userId,
+          type: req?.query?.type,
+          count: 0,
+          uniqueId: `${user.name}:${req?.query?.userId}`,
+        })
+        .removeOnComplete(true)
+        .save(function (err) {
+          if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
+        });
+      await new CallMatchUser({
+        userId: req?.query?.userId,
+      }).save();
+      //=================================================
       const callMatchAvailable = await CallMatchUser.find({ isBusy: false });
       if (callMatchAvailable?.length > 0) {
         const randomIndex = Math.floor(
@@ -143,7 +158,7 @@ exports.match = async (req, res) => {
 exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
   try {
     queueProcess.stopQueueProcess = false;
-    console.log('Random Match function ma aavyu');
+    console.log('Random Match function ma aavyu', userId);
     const user = await User.findById(userId);
     if (user?.recentConnectionId) {
       console.log(
@@ -322,6 +337,7 @@ exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
           );
         }, 2000);
       } else {
+        console.log('NO ONE IS ONLINE ');
         done();
         return io.sockets
           .in('globalRoom:' + userId)
@@ -603,4 +619,61 @@ const makeCallHistory = async (user, user2) => {
   CallMatchUser.deleteOne({ userId: outgoing.otherUserId });
 
   io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
+};
+
+exports.queStop = async (req, res) => {
+  console.log('QUE STOP API CALL ==============');
+  // queue.active(async function (err, ids) {
+  //   console.log('active Ids ====: ', ids);
+  //   await new Promise((resolve, reject) => {
+  //     ids.forEach(function (id) {
+  //       // console.log("active job : ", id);
+  //       kue.Job.get(id, function (err, job) {
+  //         console.log(job.data);
+  //         // console.log("active job: ", job.data);
+  //         if (
+  //           job.type === 'Pepsi-call-random-testing' &&
+  //           job.data.userId === req.query.userId
+  //         ) {
+  //           console.log('remove thava aavyu ');
+  //           job.remove((error) => {
+  //             if (error) {
+  //               console.log('error on remove job ', error);
+  //               return;
+  //             } else {
+  //               console.log('Job Remove Successfully......');
+  //               queueProcess.stopQueueProcess = true;
+  //               console.log(
+  //                 'Job Remove Successfully......',
+  //                 queueProcess.stopQueueProcess
+  //               );
+  //             }
+  //             randomRemove.stop = true;
+  //           });
+  //         }
+  //       });
+  //     });
+  //     resolve();
+  //   });
+  // });
+  queue.inactive(async function (err, ids) {
+    console.log('inactive Ids ========= : ', ids);
+    await new Promise((resolve, reject) => {
+      ids.forEach(function (id) {
+        // console.log("inactive job : ", id);
+        kue.Job.get(id, function (err, job) {
+          if (
+            job.type === 'Pepsi-call-random-testing' &&
+            job.data.userId === req.query.userId
+          ) {
+            console.log('remove thava aavyu ');
+            job.remove(() => {
+              randomRemove.stop = true;
+            });
+          }
+        });
+      });
+      resolve();
+    });
+  });
 };

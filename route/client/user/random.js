@@ -9,5 +9,7 @@ const checkAccessWithSecretKey = require('../../../middleware/checkAccess');
 const RandomController = require('../../../controller/client/random');
 
 route.get('/', checkAccessWithSecretKey(), RandomController.match);
+route.get('/queStop', checkAccessWithSecretKey(), RandomController.queStop);
+
 
 module.exports = route;
