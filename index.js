@@ -24,6 +24,7 @@ const route = require('./route');
 const {
   randomMatchUser,
   randomMatchHost,
+  makeCallHistory,
 } = require('./controller/client/random');
 const { userHostCall } = require('./controller/client/history');
 const { agencyWiseHostSettlement } = require('./services/agencyWiseSettlement');
@@ -113,34 +114,48 @@ queue.process('Pepsi-call-random-testing', async function (job, done) {
     console.log(error);
   }
 });
-
-queue.process(
-  'Pepsi-user-user-call-random',
-  2,
-  async function (job, done) {
-    try {
-      const user = await User.findById(job.data.userId);
-      userToUserCallIds.push(user);
-      console.log('data when random call in process ', job.data);
-      console.log('data  job.data.count === QUE  ', job.data.count);
-      console.log(
-        'userToUserCallIds in index.js ========= QUE ',
-        userToUserCallIds?.length
-      );
-
-      await randomMatchUser(
-        job.data.userId,
-        job.data.type,
-        job.data.count,
-        job.data.uniqueId,
-        job.id,
-        done
-      );
-    } catch (error) {
-      console.log(error);
-    }
+queue.process('Pepsi-testing', async function (job, done) {
+  try {
+    console.log(
+      'data when random call in process ==================',
+      job.data,
+      job.id
+    );
+    await makeCallHistory(
+      job.data.userId,
+      job.data.type,
+      job.data.count,
+      job.data.uniqueId,
+      job.id,
+      done
+    );
+  } catch (error) {
+    console.log(error);
   }
-);
+});
+queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
+  try {
+    const user = await User.findById(job.data.userId);
+    userToUserCallIds.push(user);
+    console.log('data when random call in process ', job.data);
+    console.log('data  job.data.count === QUE  ', job.data.count);
+    console.log(
+      'userToUserCallIds in index.js ========= QUE ',
+      userToUserCallIds?.length
+    );
+
+    await randomMatchUser(
+      job.data.userId,
+      job.data.type,
+      job.data.count,
+      job.data.uniqueId,
+      job.id,
+      done
+    );
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 // eslint-disable-next-line no-undef
 queue.process('Pepsi-Call-User-Host-Call', async (job, done) => {

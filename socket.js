@@ -258,12 +258,11 @@ io.on('connect', async (socket) => {
   socket.on('removeQueue', async (data_) => {
     console.log('REMOVE QUE LISTEN ============================ : ', data_);
     const finalData = JSON.parse(data_);
-    let connectedHost;
-
-    const user = await User.findById(finalData.userId);
     await CallMatchUser.deleteOne({
       userId: finalData.userId,
     });
+    let connectedHost;
+    const user = await User.findById(finalData.userId);
     connectedHost = await User.findOne({
       _id: { $ne: user._id },
       recentConnectionId: user?.recentConnectionId,
@@ -283,7 +282,7 @@ io.on('connect', async (socket) => {
       );
       socket
         .in('globalRoom:' + connectedHost._id.toString())
-        .emit('callCancel');
+        .emit('callCancel'); // @todo callCancel listen kare chhe k nai ... callconnect thya pachhi
     }
     if (user) {
       if (history?.isPrivate) {
@@ -294,6 +293,43 @@ io.on('connect', async (socket) => {
       }
       await user?.save();
     }
+    queue.active(async function (err, ids) {
+      await new Promise((resolve, reject) => {
+        ids.forEach(function (id) {
+          kue.Job.get(id, function (err, job) {
+            if (
+              job.type === 'Pepsi-testing' &&
+              job.data.userId === finalData.userId
+            ) {
+              console.log('active Id ');
+              console.log(
+                'remove thava aavyu in removeQUE ==',
+                finalData.userId
+              );
+              job.remove();
+            }
+          });
+        });
+        resolve();
+      });
+    });
+    queue.inactive(async function (err, ids) {
+      await new Promise((resolve, reject) => {
+        ids.forEach(function (id) {
+          kue.Job.get(id, function (err, job) {
+            if (
+              job.type === 'Pepsi-testing' &&
+              job.data.userId === finalData.userId
+            ) {
+              console.log('inactive Id ');
+              console.log('remove thava aavyu in removeQUE ', finalData.userId);
+              job.remove();
+            }
+          });
+        });
+        resolve();
+      });
+    });
   });
 
   // Live Stream Comment

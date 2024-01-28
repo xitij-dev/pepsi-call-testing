@@ -38,7 +38,6 @@ exports.match = async (req, res) => {
     }
 
     const user = await User.findById(req?.query?.userId);
-    console.log('user ==================', user);
     if (!user) {
       return res
         .status(200)
@@ -80,8 +79,11 @@ exports.match = async (req, res) => {
       //     uniqueId: `${user.name}:${req?.query?.userId}`,
       //   });
       // }
+      await new CallMatchUser({
+        userId: req?.query?.userId,
+      }).save();
       const job = queue
-        .create('Pepsi-user-user-call-random-testing', {
+        .create('Pepsi-testing', {
           userId: req?.query?.userId,
           type: req?.query?.type,
           count: 0,
@@ -91,55 +93,8 @@ exports.match = async (req, res) => {
         .save(function (err) {
           if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
         });
-      await new CallMatchUser({
-        userId: req?.query?.userId,
-      }).save();
-      //=================================================
-      const callMatchAvailable = await CallMatchUser.find({ isBusy: false });
-      if (callMatchAvailable?.length > 0) {
-        const randomIndex = Math.floor(
-          Math.random() * callMatchAvailable.length
-        );
-        callMatchAvailable[randomIndex];
 
-        const user2 = await User.findById(
-          callMatchAvailable[randomIndex]?.userId
-        );
-
-        console.log('user2 :', user2);
-        console.log('user ==================', user?._id);
-        makeCallHistory(user, user2);
-      } else {
-        await new CallMatchUser({
-          $ne: { userId: user?._id },
-          userId: req?.query?.userId,
-        }).save();
-
-        let timeoutId, count;
-        timeoutId = setTimeout(async () => {
-          count += 2;
-          console.log('setTimeoUt =========');
-          // await this.randomMatchUserAgain({
-          //   userId: req?.query?.userId,
-          //   type: 'both',
-          //   count: count,
-          //   uniqueId: user?.uniqueId,
-          //   timeoutId: timeoutId, // Pass the timeoutId as a parameter
-          // });
-        }, 2000);
-
-        // const job = queue
-        //   .create('Pepsi-user-user-call-random', {
-        //     userId: req?.query?.userId,
-        //     type: req?.query?.type,
-        //     count: 0,
-        //     uniqueId: `${user.name}:${req?.query?.userId}`,
-        //   })
-        //   .removeOnComplete(true)
-        //   .save(function (err) {
-        //     if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
-        //   });
-      }
+      console.log('CREATE QUE  by  : ', req?.query?.userId);
     }
     return res.status(200).json({
       status: true,
@@ -507,155 +462,222 @@ exports.randomMatchAgain = async (userId, type, count, uniqueId, id, done) => {
   }
 };
 
-exports.randomMatchUserAgain = async (userId, type, count, uniqueId) => {
-  const callMatchAvailable = await CallMatchUser.find({ userId: userId });
-  if (!callMatchAvailable) {
-    return;
+exports.randomMatchUserAgain = async (
+  userId,
+  type,
+  count,
+  uniqueId,
+  id,
+  done
+) => {
+  if (randomRemove.stop) {
+    done();
+    randomRemove.stop = false;
   } else {
-    if (count == 20) {
-      return io.sockets
-        .in(`globalRoom:${userId}`)
-        .emit('callRequest', null, 'No one is online');
-    } else {
-      const callMatchAvailable = await CallMatchUser.find({
-        $ne: { userId: userId },
-        isBusy: false,
-      });
-      if (callMatchAvailable?.length > 0) {
-        const randomIndex = Math.floor(
-          Math.random() * callMatchAvailable.length
-        );
-        const user2Id = callMatchAvailable[randomIndex].userId;
-        await callMatchAvailable[randomIndex].deleteOne();
-        CallMatchUser.deleteOne({ userId: userId });
-
-        const user = await User.findById(userId);
-        const user2 = await User.findById(user2Id);
-        makeCallHistory(user, user2);
-      }
-    }
+    await this.randomMatchUser(userId, type, count, uniqueId, id, done);
   }
 };
 
-const makeCallHistory = async (user, user2) => {
-  console.log('makeCallHistory api call');
-  const socket1user = await io
-    .in(`globalRoom:${user._id.toString()}`)
-    .fetchSockets();
-  console.log('socket1user ', socket1user?.length);
-  const outgoing = new History();
-  outgoing.userId = user._id; // call user id
-  outgoing.type = 3;
-  outgoing.otherUserId = user2._id; // call receiver otherUser id
-  outgoing.date = new Date().toLocaleString('en-US', {
-    timeZone: 'Asia/Kolkata',
-  });
-  outgoing.caller = 'user';
-  outgoing.isRandom = true;
-  await outgoing.save();
-  console.log('outgoing :', outgoing);
-
-  // Busy both user first
-  user.isBusy = true;
-  user2.isBusy = true;
-  user.recentConnectionId = outgoing._id;
-  user2.recentConnectionId = outgoing._id;
-  await user.save();
-  await user2.save();
-
-  const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let channel = '';
-  for (let i = 0; i < 8; i += 1) {
-    channel += randomChars.charAt(
-      Math.floor(Math.random() * randomChars.length)
-    );
+exports.randomMatchTestingAgain = async (
+  userId,
+  type,
+  count,
+  uniqueId,
+  id,
+  done
+) => {
+  const available = await CallMatchUser.exists({ userId: userId });
+  if (!available) {
+    console.log('NOT AVAILBLE IN CALLMATCHUSER === ');
+    done();
+  } else {
+    await this.makeCallHistory(userId, type, count, uniqueId, id, done);
   }
+};
 
-  const setting = await Setting.findOne({});
-  const data = {
-    callerId: user._id.toString(),
-    receiverId: user2._id.toString(),
-    receiverName: user2.name,
-    callerName: user.name,
-    callerImage: user.image,
-    coin: user.callCharge,
-    randomCallCharge: setting.chargeForMatchFemale,
-    token: '',
-    channel,
-    live: user.isLive,
-    callId: outgoing._id,
-    callType: 'random',
-    type: 'user',
-    jobId: 1212,
-  };
+exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
+  try {
+    const callMatchUserCount = await CallMatchUser.find().countDocuments();
+    console.log(
+      'makeCallHistory api call ===========',
+      userId,
+      '===',
+      callMatchUserCount
+    );
+    const callMatchAvailable = await CallMatchUser.findOne({
+      userId: { $ne: userId },
+      isBusy: false,
+    });
+    if (callMatchAvailable) {
+      const user2 = await User.findById(callMatchAvailable?.userId);
+      await callMatchAvailable.deleteOne();
+      await CallMatchUser.deleteOne({ userId });
+      queue.inactive(async function (err, ids) {
+        console.log('inactive Ids ========= : ', ids);
+        await new Promise((resolve, reject) => {
+          ids.forEach(function (id) {
+            // console.log("inactive job : ", id);
+            kue.Job.get(id, function (err, job) {
+              if (
+                job.type === 'Pepsi-testing' &&
+                job.data.userId === callMatchAvailable?.userId?.toString()
+              ) {
+                job.remove();
+                console.log(
+                  'remove thava aavyu ================',
+                  job.data.userId
+                );
+                console.log('DONE =====================================');
+                done();
+              }
+            });
+          });
+          resolve();
+        });
+      });
 
-  await History.updateOne(
-    { _id: outgoing._id },
-    {
-      $set: {
-        callConnect: true,
-        callStartTime: new Date().toLocaleString('en-US', {
-          timeZone: 'Asia/Kolkata',
-        }),
-      },
+      const user = await User.findById(userId);
+
+      const outgoing = new History();
+      outgoing.userId = user._id; // call user id
+      outgoing.type = 3;
+      outgoing.otherUserId = user2._id; // call receiver otherUser id
+      outgoing.date = new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Kolkata',
+      });
+      outgoing.caller = 'user';
+      outgoing.isRandom = true;
+      await outgoing.save();
+
+      // Busy both user first
+      user.isBusy = true;
+      user2.isBusy = true;
+      user.recentConnectionId = outgoing._id;
+      user2.recentConnectionId = outgoing._id;
+      await user.save();
+      await user2.save();
+
+      const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let channel = '';
+      for (let i = 0; i < 8; i += 1) {
+        channel += randomChars.charAt(
+          Math.floor(Math.random() * randomChars.length)
+        );
+      }
+
+      const setting = await Setting.findOne({});
+      const data = {
+        callerId: user._id.toString(),
+        receiverId: user2._id.toString(),
+        receiverName: user2.name,
+        callerName: user.name,
+        callerImage: user.image,
+        coin: user.callCharge,
+        randomCallCharge: setting.chargeForMatchFemale,
+        token: '',
+        channel,
+        live: user.isLive,
+        callId: outgoing._id,
+        callType: 'random',
+        type: 'user',
+        jobId: 1212,
+      };
+
+      const socket1 = await io
+        .in(`globalRoom:${outgoing.userId.toString()}`)
+        .fetchSockets();
+      const socket2 = await io
+        .in(`globalRoom:${outgoing.otherUserId.toString()}`)
+        .fetchSockets();
+
+      socket1?.length
+        ? socket1[0].join(outgoing._id?.toString())
+        : console.log('socket1 not able to emit');
+      socket2?.length
+        ? socket2[0].join(outgoing._id?.toString())
+        : console.log('socket1 not able to emit');
+      // emit in call id room
+      console.log(
+        'callConnect ============================================',
+        userId,
+        outgoing.otherUserId
+      );
+      io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
+      await History.updateOne(
+        { _id: outgoing._id },
+        {
+          $set: {
+            callConnect: true,
+            callStartTime: new Date().toLocaleString('en-US', {
+              timeZone: 'Asia/Kolkata',
+            }),
+          },
+        }
+      );
+    } else {
+      if (count < 10) {
+        count += 2;
+        setTimeout(async () => {
+          return await this.randomMatchTestingAgain(
+            userId,
+            type,
+            count,
+            uniqueId,
+            id,
+            done
+          );
+        }, 2000);
+      } else {
+        console.log('NO ONE IS ONLINE ===');
+        await CallMatchUser.deleteOne({ userId }); //@todo 'callRequest', null, 'No one is online' bahar kadhave chhe k nai first ask then
+        done();
+        return io.sockets
+          .in('globalRoom:' + userId)
+          .emit('callRequest', null, 'No one is online');
+      }
     }
-  );
-  const socket1 = await io
-    .in(`globalRoom:${outgoing.userId.toString()}`)
-    .fetchSockets();
-  const socket2 = await io
-    .in(`globalRoom:${outgoing.otherUserId.toString()}`)
-    .fetchSockets();
-
-  socket1?.length
-    ? socket1[0].join(outgoing._id?.toString())
-    : console.log('socket1 not able to emit');
-  socket2?.length
-    ? socket2[0].join(outgoing._id?.toString())
-    : console.log('socket1 not able to emit');
-  // emit in call id room
-  console.log('callConnect ===========');
-  CallMatchUser.deleteOne({ userId: outgoing.userId });
-  CallMatchUser.deleteOne({ userId: outgoing.otherUserId });
-
-  io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
+  } catch (error) {
+    done();
+    console.log(error);
+    return;
+  }
 };
 
 exports.queStop = async (req, res) => {
   console.log('QUE STOP API CALL ==============');
-  // queue.active(async function (err, ids) {
-  //   console.log('active Ids ====: ', ids);
-  //   await new Promise((resolve, reject) => {
-  //     ids.forEach(function (id) {
-  //       // console.log("active job : ", id);
-  //       kue.Job.get(id, function (err, job) {
-  //         console.log(job.data);
-  //         // console.log("active job: ", job.data);
-  //         if (
-  //           job.type === 'Pepsi-call-random-testing' &&
-  //           job.data.userId === req.query.userId
-  //         ) {
-  //           console.log('remove thava aavyu ');
-  //           job.remove((error) => {
-  //             if (error) {
-  //               console.log('error on remove job ', error);
-  //               return;
-  //             } else {
-  //               console.log('Job Remove Successfully......');
-  //               queueProcess.stopQueueProcess = true;
-  //               console.log(
-  //                 'Job Remove Successfully......',
-  //                 queueProcess.stopQueueProcess
-  //               );
-  //             }
-  //             randomRemove.stop = true;
-  //           });
-  //         }
-  //       });
-  //     });
-  //     resolve();
-  //   });
-  // });
+  queue.active(async function (err, ids) {
+    console.log('active Ids ====: ', ids);
+    await new Promise((resolve, reject) => {
+      ids.forEach(function (id) {
+        // console.log("active job : ", id);
+        kue.Job.get(id, function (err, job) {
+          console.log(job.data);
+          // console.log("active job: ", job.data);
+          if (
+            job.type === 'Pepsi-call-random-testing' &&
+            job.data.userId === req.query.userId
+          ) {
+            console.log('remove thava aavyu ');
+            job.remove((error) => {
+              if (error) {
+                console.log('error on remove job ', error);
+                return;
+              } else {
+                console.log('Job Remove Successfully......');
+                queueProcess.stopQueueProcess = true;
+                console.log(
+                  'Job Remove Successfully......',
+                  queueProcess.stopQueueProcess
+                );
+              }
+              randomRemove.stop = true;
+            });
+          }
+        });
+      });
+      resolve();
+    });
+  });
   queue.inactive(async function (err, ids) {
     console.log('inactive Ids ========= : ', ids);
     await new Promise((resolve, reject) => {
@@ -676,4 +698,87 @@ exports.queStop = async (req, res) => {
       resolve();
     });
   });
+  return res.json({ status: true });
+};
+
+exports.removeQue = async (req, res) => {
+  try {
+    console.log('REMOVE QUE API  LISTEN ============================ : ');
+    const finalData = req.query; // JSON.parse(data_);
+    await CallMatchUser.deleteOne({
+      userId: finalData.userId,
+    });
+    let connectedHost;
+    const user = await User.findById(finalData.userId);
+    connectedHost = await User.findOne({
+      _id: { $ne: user._id },
+      recentConnectionId: user?.recentConnectionId,
+    });
+    const history = await History.findById(user.recentConnectionId);
+    if (connectedHost) {
+      if (history?.isPrivate) {
+        connectedHost.isBusy = true;
+      } else {
+        connectedHost.isBusy = false;
+        connectedHost.recentConnectionId = null;
+      }
+      await connectedHost.save();
+      console.log(
+        'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+        connectedHost._id.toString()
+      );
+      socket
+        .in('globalRoom:' + connectedHost._id.toString())
+        .emit('callCancel'); // @todo callCancel listen kare chhe k nai ... callconnect thya pachhi
+    }
+    if (user) {
+      if (history?.isPrivate) {
+        user.isBusy = true;
+      } else {
+        user.recentConnectionId = null;
+        user.isBusy = false;
+      }
+      await user?.save();
+    }
+    queue.active(async function (err, ids) {
+      await new Promise((resolve, reject) => {
+        ids.forEach(function (id) {
+          kue.Job.get(id, function (err, job) {
+            if (
+              job.type === 'Pepsi-testing' &&
+              job.data.userId === finalData.userId
+            ) {
+              console.log('active Id ');
+              console.log(
+                'remove thava aavyu in removeQUE ==',
+                finalData.userId
+              );
+              job.remove();
+            }
+          });
+        });
+        resolve();
+      });
+    });
+    queue.inactive(async function (err, ids) {
+      await new Promise((resolve, reject) => {
+        ids.forEach(function (id) {
+          kue.Job.get(id, function (err, job) {
+            if (
+              job.type === 'Pepsi-testing' &&
+              job.data.userId === finalData.userId
+            ) {
+              console.log('inactive Id ');
+              console.log('remove thava aavyu in removeQUE ', finalData.userId);
+              job.remove();
+            }
+          });
+        });
+        resolve();
+      });
+    });
+    return res.json({ status: true });
+  } catch (e) {
+    return res.json({ error: e });
+  }
 };
