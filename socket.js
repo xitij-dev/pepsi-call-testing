@@ -255,14 +255,18 @@ io.on('connect', async (socket) => {
     );
   });
 
+  // // pepsi-call-testing
   socket.on('removeQueue', async (data_) => {
     console.log('REMOVE QUE LISTEN ============================ : ', data_);
     const finalData = JSON.parse(data_);
-    await CallMatchUser.deleteOne({
+    let connectedHost;
+
+    const user = await User.findById(finalData.userId);
+    const deleteUser = await CallMatchUser.deleteOne({
       userId: finalData.userId,
     });
-    let connectedHost;
-    const user = await User.findById(finalData.userId);
+
+    console.log('deleteUser == ', finalData.userId, deleteUser.deletedCount);
     connectedHost = await User.findOne({
       _id: { $ne: user._id },
       recentConnectionId: user?.recentConnectionId,
@@ -282,7 +286,7 @@ io.on('connect', async (socket) => {
       );
       socket
         .in('globalRoom:' + connectedHost._id.toString())
-        .emit('callCancel'); // @todo callCancel listen kare chhe k nai ... callconnect thya pachhi
+        .emit('callCancel');
     }
     if (user) {
       if (history?.isPrivate) {
@@ -293,20 +297,29 @@ io.on('connect', async (socket) => {
       }
       await user?.save();
     }
+
     queue.active(async function (err, ids) {
+      console.log('active Ids ========= in remove que : ', ids);
       await new Promise((resolve, reject) => {
         ids.forEach(function (id) {
+          // console.log("inactive job : ", id);
           kue.Job.get(id, function (err, job) {
             if (
-              job.type === 'Pepsi-testing' &&
-              job.data.userId === finalData.userId
+              job?.type === 'Pepsi-testing' &&
+              job?.data.userId === finalData.userId?.toString()
             ) {
-              console.log('active Id ');
-              console.log(
-                'remove thava aavyu in removeQUE ==',
-                finalData.userId
-              );
-              job.remove();
+              job.remove((error) => {
+                if (error) {
+                  console.log('error on active remove job ', error);
+                  return;
+                } else {
+                  console.log(
+                    'remove thava aavyu ================active === in remove Que',
+                    job?.id,
+                    job.data.userId
+                  );
+                }
+              });
             }
           });
         });
@@ -314,16 +327,27 @@ io.on('connect', async (socket) => {
       });
     });
     queue.inactive(async function (err, ids) {
+      console.log('inactive Ids ========= = in remove que: ', ids);
       await new Promise((resolve, reject) => {
-        ids.forEach(function (id) {
-          kue.Job.get(id, function (err, job) {
+        ids.forEach(async function (id) {
+          // console.log("inactive job : ", id);
+          kue.Job.get(id, async function (err, job) {
             if (
-              job.type === 'Pepsi-testing' &&
-              job.data.userId === finalData.userId
+              job?.type === 'Pepsi-testing' &&
+              job?.data?.userId === finalData.userId?.toString()
             ) {
-              console.log('inactive Id ');
-              console.log('remove thava aavyu in removeQUE ', finalData.userId);
-              job.remove();
+              job.remove((error) => {
+                if (error) {
+                  console.log('error on inactive remove job ', error);
+                  return;
+                } else {
+                  console.log(
+                    'remove thava aavyu ================inactive=== in remove Que',
+                    job.id,
+                    job.data.userId
+                  );
+                }
+              });
             }
           });
         });
@@ -331,6 +355,136 @@ io.on('connect', async (socket) => {
       });
     });
   });
+
+  // socket.on('removeQueue', async (data_) => {
+  //   console.log('REMOVE QUE LISTEN ============================ : ', data_);
+  //   const user = await User.findById(id);
+  //   const finalData = JSON.parse(data_);
+  //   const indexToRemove = userToUserCallIds.findIndex(
+  //     (call) => call._id?.toString() === finalData?.userId
+  //   );
+  //   if (indexToRemove !== -1) {
+  //     console.log(
+  //       'userToUserCallIds index remove que ============================= ',
+  //       indexToRemove
+  //     );
+  //     userToUserCallIds.splice(indexToRemove, 1); //if already caller is exist then remove
+  //   }
+
+  //   const history = await History.findById(user.recentConnectionId);
+  //   let connectedHost;
+  //   if (history?.hostId != null) {
+  //     connectedHost = await Host.findOne({
+  //       recentConnectionId: user?.recentConnectionId,
+  //     });
+  //   } else {
+  //     connectedHost = await User.findOne({
+  //       _id: { $ne: user._id },
+  //       recentConnectionId: user?.recentConnectionId,
+  //     });
+  //   }
+  //   if (connectedHost) {
+  //     if (history?.isPrivate) {
+  //       connectedHost.isBusy = true;
+  //     } else {
+  //       connectedHost.isBusy = false;
+  //       connectedHost.recentConnectionId = null;
+  //     }
+  //     await connectedHost.save();
+  //     console.log(
+  //       'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+  //       connectedHost._id.toString()
+  //     );
+
+  //     socket
+  //       .in('globalRoom:' + connectedHost._id.toString())
+  //       .emit('callCancel');
+  //   }
+  //   if (user) {
+  //     if (history?.isPrivate) {
+  //       user.isBusy = true;
+  //     } else {
+  //       user.recentConnectionId = null;
+  //       user.isBusy = false;
+  //     }
+  //     await user?.save();
+  //   }
+
+  //   queue.active(async function (err, ids) {
+  //     console.log('active Ids : ', ids);
+  //     await new Promise((resolve, reject) => {
+  //       ids.forEach(function (id) {
+  //         // console.log("active job : ", id);
+  //         kue.Job.get(id, function (err, job) {
+  //           // console.log("active job: ", job.data);
+  //           if (
+  //             (job.type === 'new-call-random' ||
+  //               job.type === 'Pepsi-user-user-call-random') &&
+  //             job.data.userId === finalData.userId
+  //           ) {
+  //             console.log('remove thava aavyu ');
+  //             job.remove((error) => {
+  //               if (error) {
+  //                 console.log('error on remove job ', error);
+  //                 return;
+  //               } else {
+  //                 console.log('Job Remove Successfully......');
+  //                 queueProcess.stopQueueProcess = true;
+  //                 console.log(
+  //                   'Job Remove Successfully......',
+  //                   queueProcess.stopQueueProcess
+  //                 );
+  //               }
+  //               randomRemove.stop = true;
+  //             });
+  //           }
+  //         });
+  //       });
+  //       resolve();
+  //     });
+  //   });
+  //   queue.inactive(async function (err, ids) {
+  //     console.log('inactive Ids : ', ids);
+  //     await new Promise((resolve, reject) => {
+  //       ids.forEach(function (id) {
+  //         // console.log("inactive job : ", id);
+  //         kue.Job.get(id, function (err, job) {
+  //           // console.log("inactive job: ", job.data);
+  //           if (
+  //             (job.type === 'new-call-random' ||
+  //               job.type === 'Pepsi-user-user-call-random') &&
+  //             job.data.userId === finalData.userId
+  //           ) {
+  //             console.log('remove thava aavyu ');
+  //             job.remove(() => {
+  //               randomRemove.stop = true;
+  //             });
+  //           }
+  //         });
+  //       });
+  //       resolve();
+  //     });
+  //   });
+  //   if (connectedHost && !history?.isPrivate) {
+  //     console.log(
+  //       'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+  //       connectedHost._id.toString()
+  //     );
+  //     socket
+  //       .in('globalRoom:' + connectedHost._id.toString())
+  //       .emit('callCancel');
+  //   }
+  //   console.log(
+  //     'removeQueue : host : ',
+  //     connectedHost?.isBusy,
+  //     connectedHost?.recentConnectionId
+  //   );
+  //   console.log(
+  //     'removeQueue : user : ',
+  //     user?.isBusy,
+  //     user?.recentConnectionId
+  //   );
+  // });
 
   // Live Stream Comment
 
@@ -723,9 +877,23 @@ io.on('connect', async (socket) => {
     console.log('Data in call Confirm ==========================> ', data);
 
     const room = 'globalRoom:' + data.callerId.toString();
-
     if (room) {
       io.in(room).emit('callConfirmed', data);
+    }
+    let callerUser;
+    if (data.type == 'user') {
+      callerUser = await User.findOne({ _id: data.callerId });
+    } else {
+      callerUser = await Host.findOne({ _id: data.callerId });
+    }
+    if (callerUser?.recentConnectionId !== data?.callId) {
+      console.log(
+        'callCancel emit in call Confirm ==========================> ',
+        data.receiverId
+      );
+
+      io.in('globalRoom' + data.receiverId).emit('callCancel', data);
+      return;
     }
   });
 
@@ -1357,15 +1525,12 @@ io.on('connect', async (socket) => {
 
   // when user decline the call
   socket.on('callCancel', async (data) => {
-    console.log('callCancel emit data ============', data);
+    console.log('callCancel emit data ===================', data);
     const room = 'globalRoom:' + data?.recieverId;
     console.log('room', room);
     if (room) {
-      console.log(
-        '------++++++++++++++++-----------callCancel emitted -------+++++++++++++----'
-      );
-
       if (data.callId) {
+        console.log('CALL CANCEL callId EXIST  ====');
         const history = await History.findById(data?.callId);
         if (history) {
           let host;
@@ -1386,86 +1551,122 @@ io.on('connect', async (socket) => {
             await user.save();
           }
         }
-        // writeLogMessage(
-        //   logFile,
-        //   `${room} `,
-        //   'callCancel EMIT ',
-        //   'callCancel >>>>'
-        // );
-        // console.log("callCancel emit in room ", room);
-        console.log(
-          'callCancel emit ...........callCancel.............................room ',
-          room
-        );
-
         io.in(room).emit('callCancel', data);
       } else if (data?.type === 'user') {
+        console.log('CALL CANCEL TYPE USER ====');
+
         const user = await User.findById(data?.callerId);
-        let host;
-        const hostData = await Host.findById(data?.recieverId);
-        const userData = await User.findById(data?.recieverId);
+        if (user?.recentConnectionId) {
+          let host;
+          const hostData = await Host.findById(data?.recieverId);
+          const userData = await User.findById(data?.recieverId);
 
-        if (hostData) {
-          host = hostData;
-        } else {
-          host = userData;
-        }
-        if (user.recentConnectionId === host.recentConnectionId) {
-          console.log(
-            host?.name,
-            user?.name,
-            'type ================user =====both in  call cancle and is busy recentC .. false'
-          );
-          if (host) {
-            host.isBusy = false;
-            host.recentConnectionId = null;
-            await host.save();
+          if (hostData) {
+            host = hostData;
+          } else {
+            host = userData;
           }
-          // writeLogMessage(
-          //   logFile,
-          //   `${room} `,
-          //   'callCancel EMIT user......',
-          //   'callCancel >>>>'
-          // );
-          console.log(
-            'callCancel emit ...........callCancel.............................room ',
-            room
-          );
-
-          io.in(room).emit('callCancel', data);
-        }
-        if (user) {
-          user.isBusy = false;
-          user.recentConnectionId = null;
-          await user.save();
-        }
-      } else if (data?.type === 'host') {
-        let host = await Host.findById(data?.callerId);
-        let user = await User.findById(data?.recieverId);
-        if (host.recentConnectionId == user.recentConnectionId) {
           console.log(
             host?.name,
             user?.name,
-            'type ================host  =====both in  call cancle and is busy recentC.. false'
+            'type ================user ===== both in  call cancle and is busy recentC .. false'
           );
+          if (user?.recentConnectionId === host?.recentConnectionId) {
+            console.log('connectionId same');
+            if (host) {
+              host.isBusy = false;
+              host.recentConnectionId = null;
+              await host.save();
+            }
+            io.in(room).emit('callCancel', data);
+          }
           if (user) {
             user.isBusy = false;
             user.recentConnectionId = null;
             await user.save();
           }
-
-          console.log(
-            'callCancel emit ...........callCancel.............................room ',
-            room
-          );
-
-          io.in(room).emit('callCancel', data);
+        } else {
+          setTimeout(async () => {
+            // setTimeOut add because callCancel listen before call is in Process and in process func again isBusy = true ...
+            console.log(
+              'SET TIMEOUT in callcancel TYPE : user ================'
+            );
+            const user = await User.findById(data?.callerId);
+            let host;
+            const hostData = await Host.findById(data?.recieverId);
+            const userData = await User.findById(data?.recieverId);
+            if (hostData) {
+              host = hostData;
+            } else {
+              host = userData;
+            }
+            console.log(
+              host?.name,
+              user?.name,
+              'type ================user ===== both in  call cancle and is busy recentC .. false'
+            );
+            if (user?.recentConnectionId === host?.recentConnectionId) {
+              console.log('connectionId same');
+              if (host) {
+                host.isBusy = false;
+                host.recentConnectionId = null;
+                await host.save();
+              }
+              io.in(room).emit('callCancel', data);
+            }
+            if (user) {
+              user.isBusy = false;
+              user.recentConnectionId = null;
+              await user.save();
+            }
+          }, 1500);
         }
-        console.log(host?._id, user?._id, 'type ================host');
-        if (host) {
-          host.isBusy = false;
-          host.recentConnectionId = null;
-          await host.save();
+      } else if (data?.type === 'host') {
+        console.log('CALL CANCEL TYPE HOST ====');
+        let host = await Host.findById(data?.callerId);
+        let user = await User.findById(data?.recieverId);
+        console.log(
+          host?.name,
+          user?.name,
+          'type ================user ===== both in  call cancle and is busy recentC .. false'
+        );
+        if (host?.recentConnectionId) {
+          if (host?.recentConnectionId == user?.recentConnectionId) {
+            console.log('connectionId same');
+            if (user) {
+              user.isBusy = false;
+              user.recentConnectionId = null;
+              await user.save();
+            }
+            io.in(room).emit('callCancel', data);
+          }
+          if (host) {
+            host.isBusy = false;
+            host.recentConnectionId = null;
+            await host.save();
+          }
+        } else {
+          setTimeout(async () => {
+            let host = await Host.findById(data?.callerId);
+            let user = await User.findById(data?.recieverId);
+            console.log(
+              'SET TIMEOUT in callcancel TYPE : host ================'
+            );
+            if (host?.recentConnectionId == user?.recentConnectionId) {
+              console.log('connectionId same');
+              if (user) {
+                user.isBusy = false;
+                user.recentConnectionId = null;
+                await user.save();
+              }
+              io.in(room).emit('callCancel', data);
+            }
+            if (host) {
+              host.isBusy = false;
+              host.recentConnectionId = null;
+              await host.save();
+            }
+          }, 1500);
         }
       }
     }

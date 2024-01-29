@@ -31,7 +31,6 @@ const { agencyWiseHostSettlement } = require('./services/agencyWiseSettlement');
 const User = require('./model/user');
 // const { firebaseConfig } = require('./middleware/fireBase');
 
-app.use('/kue-api', kue.app);
 app.use('/', route);
 
 app.get('/*', function (req, res) {
@@ -58,13 +57,11 @@ global.io = require('socket.io')(server, {
 
 require('./socket');
 
-queue.process('Pepsi-call-random-testing', async function (job, done) {
+app.use('/kue-api', kue.app);
+
+queue.process('Pepsi-call-random', async function (job, done) {
   try {
-    console.log(
-      'data when random call in process ==========',
-      job.data,
-      job.id
-    );
+    console.log('data when random call in process ', job.data);
 
     kue.Job.rangeByType(
       'Pepsi-call-random',
@@ -114,25 +111,42 @@ queue.process('Pepsi-call-random-testing', async function (job, done) {
     console.log(error);
   }
 });
+
+// pepsi -call -testing
 queue.process('Pepsi-testing', async function (job, done) {
   try {
     console.log(
-      'data when random call in process ==================',
+      'data when random call in process ================== Pepsi-testing =====',
       job.data,
       job.id
     );
-    await makeCallHistory(
-      job.data.userId,
-      job.data.type,
-      job.data.count,
-      job.data.uniqueId,
-      job.id,
-      done
+
+    kue.Job.rangeByType(
+      'Pepsi-call-random',
+      'active',
+      0,
+      -1,
+      'desc',
+      async function (err, jobs) {
+        if (err) {
+          console.log('Error:', err);
+          return;
+        }
+        await makeCallHistory(
+          job.data.userId,
+          job.data.type,
+          job.data.count,
+          job.data.uniqueId,
+          job.id,
+          done
+        );
+      }
     );
   } catch (error) {
     console.log(error);
   }
 });
+
 queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
   try {
     const user = await User.findById(job.data.userId);

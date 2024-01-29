@@ -29,91 +29,86 @@ const CallMatchUser = require('../../model/callMatchUser');
 
 // const logFile = createCustomLogFile();
 
-exports.match = async (req, res) => {
-  try {
-    if (!req?.query?.type || !req?.query?.userId) {
-      return res
-        .status(200)
-        .json({ status: false, message: 'Type and UserId must be needed !' });
-    }
+// exports.match = async (req, res) => {
+//   try {
+//     if (!req?.query?.type || !req?.query?.userId) {
+//       return res
+//         .status(200)
+//         .json({ status: false, message: 'Type and UserId must be needed !' });
+//     }
 
-    const user = await User.findById(req?.query?.userId);
-    if (!user) {
-      return res
-        .status(200)
-        .json({ status: false, message: 'User Not Found !' });
-    }
+//     const user = await User.findById(req?.query?.userId);
 
-    if (user.isBusy) {
-      return res
-        .status(200)
-        .json({ status: false, message: "Oops Something want's wrong!" });
-    }
+//     if (!user) {
+//       return res
+//         .status(200)
+//         .json({ status: false, message: 'User Not Found !' });
+//     }
 
-    if (req?.query?.type === 'female') {
-      const job = queue
-        .create('Pepsi-call-random-testing', {
-          userId: req?.query?.userId,
-          type: req?.query?.type,
-          count: 0,
-          uniqueId: `${user.name}:${req?.query?.userId}`,
-        })
-        .removeOnComplete(true)
-        .save(function (err) {
-          if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
-        });
-    }
+//     if (user.isBusy) {
+//       return res
+//         .status(200)
+//         .json({ status: false, message: "Oops Something want's wrong!" });
+//     }
 
-    if (req?.query?.type === 'male' || req?.query?.type === 'both') {
-      // const index = userToUserCallIds.findIndex(
-      //   (call) => call._id?.toString() === req?.query?.userId
-      // );
-      // if (index !== -1) {
-      //   console.log(
-      //     'userToUserCallIds index already exist in randomMatch API return  ==== '
-      //   );
+//     if (req?.query?.type === 'female') {
+//       const job = queue
+//         .create('Pepsi-call-random', {
+//           userId: req?.query?.userId,
+//           type: req?.query?.type,
+//           count: 0,
+//           uniqueId: `${user.name}:${req?.query?.userId}`,
+//         })
+//         .removeOnComplete(true)
+//         .save(function (err) {
+//           if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
+//         });
+//     }
 
-      //   return res.status(200).json({
-      //     status: true,
-      //     message: 'Success',
-      //     uniqueId: `${user.name}:${req?.query?.userId}`,
-      //   });
-      // }
-      await new CallMatchUser({
-        userId: req?.query?.userId,
-      }).save();
-      const job = queue
-        .create('Pepsi-testing', {
-          userId: req?.query?.userId,
-          type: req?.query?.type,
-          count: 0,
-          uniqueId: `${user.name}:${req?.query?.userId}`,
-        })
-        .removeOnComplete(true)
-        .save(function (err) {
-          if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
-        });
-
-      console.log('CREATE QUE  by  : ', req?.query?.userId);
-    }
-    return res.status(200).json({
-      status: true,
-      message: 'Success',
-      uniqueId: `${user.name}:${req?.query?.userId}`,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      status: false,
-      message: error.message || 'Internal Server Error',
-    });
-  }
-};
+//     if (req?.query?.type === 'male' || req?.query?.type === 'both') {
+//       const index = userToUserCallIds.findIndex(
+//         (call) => call._id?.toString() === req?.query?.userId
+//       );
+//       if (index !== -1) {
+//         console.log(
+//           'userToUserCallIds index already exist in randomMatch API return  ==== '
+//         );
+//         return res.status(200).json({
+//           status: true,
+//           message: 'Success',
+//           uniqueId: `${user.name}:${req?.query?.userId}`,
+//         });
+//       }
+//       const job = queue
+//         .create('Pepsi-user-user-call-random', {
+//           userId: req?.query?.userId,
+//           type: req?.query?.type,
+//           count: 0,
+//           uniqueId: `${user.name}:${req?.query?.userId}`,
+//         })
+//         .removeOnComplete(true)
+//         .save(function (err) {
+//           if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
+//         });
+//     }
+//     return res.status(200).json({
+//       status: true,
+//       message: 'Success',
+//       uniqueId: `${user.name}:${req?.query?.userId}`,
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json({
+//       status: false,
+//       message: error.message || 'Internal Server Error',
+//     });
+//   }
+// };
 
 exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
   try {
     queueProcess.stopQueueProcess = false;
-    console.log('Random Match function ma aavyu', userId);
+    console.log('Random Match function ma aavyu');
     const user = await User.findById(userId);
     if (user?.recentConnectionId) {
       console.log(
@@ -245,14 +240,7 @@ exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
           data
         );
         done();
-        // writeLogMessage(
-        //   logFile,
-        //   `random match emit in host id ====>>>>>>>>>>>>>>> ======>>>>>>>>>>>>>  Livehost:${host._id.toString()} with ${JSON.stringify(
-        //     data
-        //   )}  `,
-        //   'Host',
-        //   `Random Match Success`
-        // );
+
         return io.sockets
           .in('globalRoom:' + host._id.toString())
           .emit('callRequest', data, null);
@@ -292,7 +280,6 @@ exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
           );
         }, 2000);
       } else {
-        console.log('NO ONE IS ONLINE ');
         done();
         return io.sockets
           .in('globalRoom:' + userId)
@@ -397,9 +384,8 @@ exports.randomMatchUser = async (userId, type, count, uniqueId, id, done) => {
           ? socket2[0].join(outgoing._id)
           : console.log('socket1 not able to emit');
         // emit in call id room
-        console.log('callConnect ===========', data);
-        const socketemit = await io.in(outgoing._id).fetchSockets();
-        console.log('socket  ===========', socketemit?.length);
+        console.log('callConnect ===========');
+
         io.in(outgoing._id).emit('userUserCall', data, null);
         return true;
       }
@@ -478,6 +464,86 @@ exports.randomMatchUserAgain = async (
   }
 };
 
+// pepsi - call -testing
+
+exports.match = async (req, res) => {
+  try {
+    console.log('callMatch Api call ============', req?.query?.userId);
+
+    if (!req?.query?.type || !req?.query?.userId) {
+      return res
+        .status(200)
+        .json({ status: false, message: 'Type and UserId must be needed !' });
+    }
+    const user = await User.findById(req?.query?.userId);
+    if (!user) {
+      return res
+        .status(200)
+        .json({ status: false, message: 'User Not Found !' });
+    }
+    if (user.isBusy) {
+      return res
+        .status(200)
+        .json({ status: false, message: "Oops Something want's wrong!" });
+    }
+    if (req?.query?.type === 'female') {
+      const job = queue
+        .create('Pepsi-call-random', {
+          userId: req?.query?.userId,
+          type: req?.query?.type,
+          count: 0,
+          uniqueId: `${user.name}:${req?.query?.userId}`,
+        })
+        .removeOnComplete(true)
+        .save(function (err) {
+          if (!err) console.log('Job Add In Random Queue With ID: ', job.id);
+        });
+    }
+    if (req?.query?.type === 'male' || req?.query?.type === 'both') {
+      try {
+        await new CallMatchUser({
+          userId: req?.query?.userId,
+        }).save();
+      } catch (e) {
+        console.log('Already exist ===');
+        return res.status(200).json({
+          status: true,
+          message: 'Success',
+          uniqueId: `${user.name}:${req?.query?.userId}`,
+        });
+      }
+      const job = queue
+        .create('Pepsi-testing', {
+          userId: req?.query?.userId,
+          type: req?.query?.type,
+          count: 0,
+          uniqueId: `${user.name}:${req?.query?.userId}`,
+        })
+        .removeOnComplete(true)
+        .save(function (err) {
+          if (!err) {
+            console.log(
+              'CREATE QUE  by  =========================================: ',
+              req?.query?.userId
+            );
+            console.log('Job Add In Random Queue With ID: ', job.id);
+          }
+        });
+    }
+    return res.status(200).json({
+      status: true,
+      message: 'Success',
+      uniqueId: `${user.name}:${req?.query?.userId}`,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      status: false,
+      message: error.message || 'Internal Server Error',
+    });
+  }
+};
+
 exports.randomMatchTestingAgain = async (
   userId,
   type,
@@ -497,21 +563,14 @@ exports.randomMatchTestingAgain = async (
 
 exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
   try {
-    const callMatchUserCount = await CallMatchUser.find().countDocuments();
-    console.log(
-      'makeCallHistory api call ===========',
-      userId,
-      '===',
-      callMatchUserCount
-    );
+    console.log('makeCallHistory api call ===========', userId, '===', count);
     const callMatchAvailable = await CallMatchUser.findOne({
       userId: { $ne: userId },
       isBusy: false,
     });
     if (callMatchAvailable) {
       const user2 = await User.findById(callMatchAvailable?.userId);
-      await callMatchAvailable.deleteOne();
-      await CallMatchUser.deleteOne({ userId });
+
       queue.inactive(async function (err, ids) {
         console.log('inactive Ids ========= : ', ids);
         await new Promise((resolve, reject) => {
@@ -519,25 +578,31 @@ exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
             // console.log("inactive job : ", id);
             kue.Job.get(id, function (err, job) {
               if (
-                job.type === 'Pepsi-testing' &&
-                job.data.userId === callMatchAvailable?.userId?.toString()
+                job?.type === 'Pepsi-testing' &&
+                job?.data.userId === callMatchAvailable?.userId?.toString()
               ) {
                 job.remove();
                 console.log(
-                  'remove thava aavyu ================',
+                  'remove thava aavyu ================ in Function',
+                  job.id,
                   job.data.userId
                 );
-                console.log('DONE =====================================');
-                done();
               }
             });
           });
           resolve();
         });
       });
-
       const user = await User.findById(userId);
-
+      user.isBusy = true;
+      user2.isBusy = true;
+      const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let channel = '';
+      for (let i = 0; i < 8; i += 1) {
+        channel += randomChars.charAt(
+          Math.floor(Math.random() * randomChars.length)
+        );
+      }
       const outgoing = new History();
       outgoing.userId = user._id; // call user id
       outgoing.type = 3;
@@ -549,21 +614,10 @@ exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
       outgoing.isRandom = true;
       await outgoing.save();
 
-      // Busy both user first
-      user.isBusy = true;
-      user2.isBusy = true;
       user.recentConnectionId = outgoing._id;
       user2.recentConnectionId = outgoing._id;
       await user.save();
       await user2.save();
-
-      const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let channel = '';
-      for (let i = 0; i < 8; i += 1) {
-        channel += randomChars.charAt(
-          Math.floor(Math.random() * randomChars.length)
-        );
-      }
 
       const setting = await Setting.findOne({});
       const data = {
@@ -596,24 +650,46 @@ exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
       socket2?.length
         ? socket2[0].join(outgoing._id?.toString())
         : console.log('socket1 not able to emit');
-      // emit in call id room
-      console.log(
-        'callConnect ============================================',
-        userId,
-        outgoing.otherUserId
-      );
-      io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
-      await History.updateOne(
-        { _id: outgoing._id },
-        {
-          $set: {
-            callConnect: true,
-            callStartTime: new Date().toLocaleString('en-US', {
-              timeZone: 'Asia/Kolkata',
-            }),
-          },
-        }
-      );
+
+      const callMatchUserVerify = await CallMatchUser.findOne({
+        userId: user._id,
+      });
+      const callMatchUser2Verify = await CallMatchUser.findOne({
+        userId: callMatchAvailable.userId,
+      });
+
+      if (callMatchUserVerify && callMatchUser2Verify) {
+        io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
+        done();
+        await callMatchAvailable.deleteOne();
+        await CallMatchUser.deleteOne({ userId });
+        console.log(
+          'callConnect ============================================',
+          userId,
+          outgoing.otherUserId
+        );
+
+        await History.updateOne(
+          { _id: outgoing._id },
+          {
+            $set: {
+              callConnect: true,
+              callStartTime: new Date().toLocaleString('en-US', {
+                timeZone: 'Asia/Kolkata',
+              }),
+            },
+          }
+        );
+      } else {
+        console.log('not verify ============================================');
+        user.isBusy = false;
+        user.recentConnectionId = null;
+        user.save();
+        user2.isBusy = false;
+        user2.recentConnectionId = null;
+        user2.save();
+        done();
+      }
     } else {
       if (count < 10) {
         count += 2;
@@ -628,8 +704,7 @@ exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
           );
         }, 2000);
       } else {
-        console.log('NO ONE IS ONLINE ===');
-        await CallMatchUser.deleteOne({ userId }); //@todo 'callRequest', null, 'No one is online' bahar kadhave chhe k nai first ask then
+        console.log('NO ONE IS ONLINE ==========');
         done();
         return io.sockets
           .in('globalRoom:' + userId)
@@ -640,145 +715,5 @@ exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
     done();
     console.log(error);
     return;
-  }
-};
-
-exports.queStop = async (req, res) => {
-  console.log('QUE STOP API CALL ==============');
-  queue.active(async function (err, ids) {
-    console.log('active Ids ====: ', ids);
-    await new Promise((resolve, reject) => {
-      ids.forEach(function (id) {
-        // console.log("active job : ", id);
-        kue.Job.get(id, function (err, job) {
-          console.log(job.data);
-          // console.log("active job: ", job.data);
-          if (
-            job.type === 'Pepsi-call-random-testing' &&
-            job.data.userId === req.query.userId
-          ) {
-            console.log('remove thava aavyu ');
-            job.remove((error) => {
-              if (error) {
-                console.log('error on remove job ', error);
-                return;
-              } else {
-                console.log('Job Remove Successfully......');
-                queueProcess.stopQueueProcess = true;
-                console.log(
-                  'Job Remove Successfully......',
-                  queueProcess.stopQueueProcess
-                );
-              }
-              randomRemove.stop = true;
-            });
-          }
-        });
-      });
-      resolve();
-    });
-  });
-  queue.inactive(async function (err, ids) {
-    console.log('inactive Ids ========= : ', ids);
-    await new Promise((resolve, reject) => {
-      ids.forEach(function (id) {
-        // console.log("inactive job : ", id);
-        kue.Job.get(id, function (err, job) {
-          if (
-            job.type === 'Pepsi-call-random-testing' &&
-            job.data.userId === req.query.userId
-          ) {
-            console.log('remove thava aavyu ');
-            job.remove(() => {
-              randomRemove.stop = true;
-            });
-          }
-        });
-      });
-      resolve();
-    });
-  });
-  return res.json({ status: true });
-};
-
-exports.removeQue = async (req, res) => {
-  try {
-    console.log('REMOVE QUE API  LISTEN ============================ : ');
-    const finalData = req.query; // JSON.parse(data_);
-    await CallMatchUser.deleteOne({
-      userId: finalData.userId,
-    });
-    let connectedHost;
-    const user = await User.findById(finalData.userId);
-    connectedHost = await User.findOne({
-      _id: { $ne: user._id },
-      recentConnectionId: user?.recentConnectionId,
-    });
-    const history = await History.findById(user.recentConnectionId);
-    if (connectedHost) {
-      if (history?.isPrivate) {
-        connectedHost.isBusy = true;
-      } else {
-        connectedHost.isBusy = false;
-        connectedHost.recentConnectionId = null;
-      }
-      await connectedHost.save();
-      console.log(
-        'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
-        connectedHost._id.toString()
-      );
-      socket
-        .in('globalRoom:' + connectedHost._id.toString())
-        .emit('callCancel'); // @todo callCancel listen kare chhe k nai ... callconnect thya pachhi
-    }
-    if (user) {
-      if (history?.isPrivate) {
-        user.isBusy = true;
-      } else {
-        user.recentConnectionId = null;
-        user.isBusy = false;
-      }
-      await user?.save();
-    }
-    queue.active(async function (err, ids) {
-      await new Promise((resolve, reject) => {
-        ids.forEach(function (id) {
-          kue.Job.get(id, function (err, job) {
-            if (
-              job.type === 'Pepsi-testing' &&
-              job.data.userId === finalData.userId
-            ) {
-              console.log('active Id ');
-              console.log(
-                'remove thava aavyu in removeQUE ==',
-                finalData.userId
-              );
-              job.remove();
-            }
-          });
-        });
-        resolve();
-      });
-    });
-    queue.inactive(async function (err, ids) {
-      await new Promise((resolve, reject) => {
-        ids.forEach(function (id) {
-          kue.Job.get(id, function (err, job) {
-            if (
-              job.type === 'Pepsi-testing' &&
-              job.data.userId === finalData.userId
-            ) {
-              console.log('inactive Id ');
-              console.log('remove thava aavyu in removeQUE ', finalData.userId);
-              job.remove();
-            }
-          });
-        });
-        resolve();
-      });
-    });
-    return res.json({ status: true });
-  } catch (e) {
-    return res.json({ error: e });
   }
 };
