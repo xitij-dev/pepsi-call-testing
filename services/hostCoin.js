@@ -2,6 +2,7 @@ const History = require('../model/history');
 const Setting = require('../model/setting');
 const Host = require('../model/host');
 const User = require('../model/user');
+const AppWiseSetting = require("../model/appWiseSetting")
 const { roundNumber } = require('../util/roundNumber');
 
 exports.hostCoinEarnedHistory = async (id) => {

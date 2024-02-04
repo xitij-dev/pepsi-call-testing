@@ -46,6 +46,36 @@ exports.hostIsLive = async (req, res) => {
       liveUser.liveStreamingId = liveStreamingHistory._id;
       liveUser.agoraUID = agoraUID;
       LiveUserData = await LiveUserFunction(liveUser, host);
+      usersRef
+        .orderByChild('liveHostId')
+        .equalTo(host?._id.toString())
+        .once('value')
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            const keyToRemove = Object.keys(snapshot.val())[0];
+            return usersRef.child(keyToRemove).remove();
+          } else {
+            console.log('No matching data found in api');
+          }
+        })
+        .then(() => {
+          let data = {
+            liveHostId: host?._id.toString(),
+            liveRoomId: liveStreamingHistory?._id.toString(),
+            isBusy: false,
+          };
+          usersRef
+            .push(data) // This will create a new unique key for each user
+            .then(() => {
+              console.log('Data stored successfully in the database in api');
+            })
+            .catch((error) => {
+              console.error('Error storing data:', error);
+            });
+        })
+        .catch((error) => {
+          console.error('Error removing data in disconnect in api', error);
+        });
     } else {
       console.log("liveUSer don't exists .....");
 
@@ -53,6 +83,19 @@ exports.hostIsLive = async (req, res) => {
       createLiveUser.liveStreamingId = liveStreamingHistory._id;
       createLiveUser.agoraUID = agoraUID;
       LiveUserData = await LiveUserFunction(createLiveUser, host);
+      let data = {
+        liveHostId: host?._id.toString(),
+        liveRoomId: liveStreamingHistory?._id.toString(),
+        isBusy: false,
+      };
+      usersRef
+        .push(data) // This will create a new unique key for each user
+        .then(() => {
+          console.log('Data stored successfully in the database in api else');
+        })
+        .catch((error) => {
+          console.error('Error storing data: in api : ', error);
+        });
     }
 
     let matchQuery = {};
@@ -85,7 +128,12 @@ exports.hostIsLive = async (req, res) => {
     });
 
     const topic = '/topics/PEPSIUSER';
-
+    let liveUserObj = {
+      ...host?._doc,
+      counntry: host?._doc?.countryId,
+      flag: host?._doc?.countryId?.flag,
+      isLive: true,
+    };
     const payload = {
       to: topic,
       time_to_live: 30,
@@ -99,9 +147,10 @@ exports.hostIsLive = async (req, res) => {
           body: 'Host is live',
           title: `${host?.name} is Live Now ... !`,
           image: host?.image,
+          liveUser: liveUserObj,
         },
+        type: 'LIVEUSER',
       },
-      type: 'LIVEUSER',
     };
 
     await fcm.send(payload, async function (err, response) {

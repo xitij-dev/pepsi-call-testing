@@ -29,9 +29,9 @@ const {
 const { userHostCall } = require('./controller/client/history');
 const { agencyWiseHostSettlement } = require('./services/agencyWiseSettlement');
 const User = require('./model/user');
+const { log } = require('console');
 // const { firebaseConfig } = require('./middleware/fireBase');
 
-app.use('/kue-api', kue.app);
 app.use('/', route);
 
 app.get('/*', function (req, res) {
@@ -58,13 +58,47 @@ global.io = require('socket.io')(server, {
 
 require('./socket');
 
-queue.process('Pepsi-call-random-testing', async function (job, done) {
+app.use('/kue-api', kue.app);
+
+// pepsi -call -testing
+queue.process('Pepsi-new-userUserCall', async function (job, done) {
   try {
     console.log(
-      'data when random call in process ==========',
+      'data when random call in process ================== Pepsi-testing =====',
       job.data,
       job.id
     );
+
+    kue.Job.rangeByType(
+      'Pepsi-new-userUserCall',
+      'active',
+      0,
+      -1,
+      'desc',
+      async function (err, jobs) {
+        if (err) {
+          console.log('Error:', err);
+          return;
+        }
+        await makeCallHistory(
+          job.data.userId,
+          job.data.type,
+          job.data.count,
+          job.data.uniqueId,
+          job.id,
+          done
+        );
+      }
+    );
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+
+queue.process('Pepsi-call-random', async function (job, done) {
+  try {
+    console.log('data when random call in process ', job.data);
 
     kue.Job.rangeByType(
       'Pepsi-call-random',
@@ -114,48 +148,30 @@ queue.process('Pepsi-call-random-testing', async function (job, done) {
     console.log(error);
   }
 });
-queue.process('Pepsi-testing', async function (job, done) {
-  try {
-    console.log(
-      'data when random call in process ==================',
-      job.data,
-      job.id
-    );
-    await makeCallHistory(
-      job.data.userId,
-      job.data.type,
-      job.data.count,
-      job.data.uniqueId,
-      job.id,
-      done
-    );
-  } catch (error) {
-    console.log(error);
-  }
-});
-queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
-  try {
-    const user = await User.findById(job.data.userId);
-    userToUserCallIds.push(user);
-    console.log('data when random call in process ', job.data);
-    console.log('data  job.data.count === QUE  ', job.data.count);
-    console.log(
-      'userToUserCallIds in index.js ========= QUE ',
-      userToUserCallIds?.length
-    );
 
-    await randomMatchUser(
-      job.data.userId,
-      job.data.type,
-      job.data.count,
-      job.data.uniqueId,
-      job.id,
-      done
-    );
-  } catch (error) {
-    console.log(error);
-  }
-});
+// queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
+//   try {
+//     const user = await User.findById(job.data.userId);
+//     userToUserCallIds.push(user);
+//     console.log('data when random call in process ', job.data);
+//     console.log('data  job.data.count === QUE  ', job.data.count);
+//     console.log(
+//       'userToUserCallIds in index.js ========= QUE ',
+//       userToUserCallIds?.length
+//     );
+
+//     await randomMatchUser(
+//       job.data.userId,
+//       job.data.type,
+//       job.data.count,
+//       job.data.uniqueId,
+//       job.id,
+//       done
+//     );
+//   } catch (error) {
+//     console.log(error);
+//   }
+// });
 
 // eslint-disable-next-line no-undef
 queue.process('Pepsi-Call-User-Host-Call', async (job, done) => {
@@ -184,9 +200,10 @@ db.once('open', () => {
   console.log('MONGO: successfully connected to db');
 });
 
-// set node cron for settlement
-// cron.schedule('00 00 00 * * 1', async () => {
+// // set node cron for settlement
+// cron.schedule('* * * * *', async () => {
 //   await agencyWiseHostSettlement();
+//   console.log('Crone Done Successfully')
 // });
 
 // set node cron for update view

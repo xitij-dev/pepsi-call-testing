@@ -81,7 +81,9 @@ exports.getPlan = async (req, res) => {
       data.push(obj);
     }
     shuffle(data);
-    return res.status(200).send({ status: true, message: 'success!!', data });
+    return res
+      .status(200)
+      .send({ status: true, message: 'success!!', vipplan: data });
   } catch (error) {
     console.log(error);
     return res

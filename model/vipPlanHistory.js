@@ -12,7 +12,7 @@ const purchaseVipPlanHistory = new mongoose.Schema(
       default: null,
       ref: 'vipPlan',
     },
-    vipFlashCoinId: {
+    vipFlashPlanId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null,
       ref: 'vipFlashCoin',

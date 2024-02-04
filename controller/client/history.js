@@ -387,7 +387,6 @@ exports.userHostCall = async (
         userQuery.recentConnectionId,
         hostQuery.recentConnectionId
       );
-
       if (videoCallType === 'host' ? user.isOnline : host.isOnline) {
         console.log('call request ..................');
         // writeLogMessage(
@@ -411,6 +410,7 @@ exports.userHostCall = async (
           .in('globalRoom:' + callerId)
           .emit('callRequest', null, 'Receiver User Not Connected');
       }
+ 
     } else {
       done();
     }
@@ -1209,7 +1209,7 @@ exports.hisotryForHost = async (req, res) => {
         },
         {
           $sort: {
-            date: -1,
+            _id: -1,
           },
         },
         {
@@ -1360,7 +1360,7 @@ exports.hisotryForHost = async (req, res) => {
       },
       {
         $sort: {
-          date: -1,
+          _id: -1,
         },
       },
       {
@@ -1545,11 +1545,15 @@ exports.userCoinHistory = async (req, res) => {
                 { case: { $eq: ['$type', 4] }, then: 'Login Bonus' },
                 { case: { $eq: ['$type', 5] }, then: 'By Admin' },
                 { case: { $eq: ['$type', 6] }, then: 'ReferralCode Bonus' },
-                { case: { $eq: ['$type', 7] }, then: 'Purchase From ScratchCard' },
+                {
+                  case: { $eq: ['$type', 7] },
+                  then: 'Purchase From ScratchCard',
+                },
                 { case: { $eq: ['$type', 8] }, then: 'Gift In Live' },
                 { case: { $eq: ['$type', 9] }, then: 'Gift In VideoCall' },
                 // { case: { $eq: ['$type', 10] }, then: 'Coin Seller' },
               ],
+              default: 'default',
             },
           },
         },

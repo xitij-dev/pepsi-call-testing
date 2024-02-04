@@ -509,13 +509,13 @@ exports.purchagePlan = async (req, res) => {
         await purchaseHistory.save();
         isVip = true;
         break;
-      case 'vipFlashCoin':
+      case 'flashVip':
         plan = await VipFlashCoin.findById(req.body.planId);
         historyType = 11;
         if (!plan) {
           return res.status(200).send({
             status: false,
-            message: 'vipFlashCoin not exists',
+            message: 'vipFlashPlan not exists',
             user: {},
           });
         }
@@ -525,7 +525,7 @@ exports.purchagePlan = async (req, res) => {
         );
         const vipFlashPurchaseHistory = new VipPlanHistory();
         vipFlashPurchaseHistory.userId = user._id;
-        vipFlashPurchaseHistory.vipFlashCoinId = plan._id;
+        vipFlashPurchaseHistory.vipFlashPlanId = plan._id;
         vipFlashPurchaseHistory.expireDate = vipFlashValidDate.toISOString();
         await vipFlashPurchaseHistory.save();
         isVip = true;
@@ -538,14 +538,16 @@ exports.purchagePlan = async (req, res) => {
       await user.save();
     }
 
-    const planCoin = await plan.coin
+    const planCoin = await plan.coin;
 
     const userHistory = new History();
     userHistory.userId = user._id;
     userHistory.planId = plan?._id;
     userHistory.paymentGateway = paymentGateway ? paymentGateway : null;
     userHistory.uCoin = plan.coin ? plan.coin : 0;
-    userHistory.date = new Date().toLocaleString('en-US', {timeZone: 'Asia/Kolkata'});
+    userHistory.date = new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Kolkata',
+    });
     userHistory.type = historyType;
     await userHistory.save();
 

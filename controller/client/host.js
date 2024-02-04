@@ -1048,52 +1048,82 @@ exports.getHostProfileForApp = async (req, res) => {
 // get live host for android
 exports.getRandomLiveHost = async (req, res) => {
   try {
-    const host = await Host.aggregate([
-      {
-        $match: {
-          isLive: true,
-        },
-      },
+    console.log('req.query.start  ', req.query.start);
+    let skip;
+    const countHost = await LiveUser.find({}).countDocuments();
+    console.log(countHost);
+
+    let start = req.query.start ? parseInt(req.query.start) : 0;
+    let limit = req.query.limit ? parseInt(req.query.limit) : 20;
+    if (start >= countHost) {
+      start = 0;
+    }
+    if (countHost <= start + limit) {
+      skip = countHost;
+    } else {
+      console.log('ELSE  ');
+      skip = start + limit;
+    }
+
+    const host = await LiveUser.aggregate([
       {
         $lookup: {
-          from: 'countries',
-          localField: 'countryId',
+          from: 'hosts',
+          localField: 'liveHostId',
           foreignField: '_id',
-          as: 'countryId',
+          as: 'host',
         },
       },
       {
-        $unwind: '$countryId',
+        $unwind: {
+          path: '$host',
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+      {
+        $addFields: {
+          isLive: true,
+          flag: '$countryFlag',
+        },
       },
       {
         $project: {
-          uniqueId: 1,
-          profilePic: 1,
-          image: 1,
-          coin: 1,
+          mainId: '$_id',
+          _id: '$host._id',
+          uniqueId: '$host.uniqueId',
+          profilePic: '$host.profilePic',
+          image: '$host.image',
+          coin: '$host.coin',
           isLive: 1,
-          channel: 1,
-          isBusy: 1,
-          isOnline: 1,
-          age: 1,
-          identity: 1,
-          gender: 1,
-          name: 1,
-          bio: 1,
-          counntry: '$countryId.name',
-          flag: '$countryId.flag',
-          receiveGift: 1,
-          receiveCoin: 1,
+          channel: '$host.channel',
+          isBusy: '$host.isBusy',
+          isOnline: '$host.isOnline',
+          age: '$host.age',
+          identity: '$host.identity',
+          gender: '$host.gender',
+          name: '$host.name',
+          bio: '$host.bio',
+          counntry: '$country',
+          flag: 1,
+          receiveGift: '$host.receiveGift',
+          receiveCoin: '$host.receiveCoin',
         },
       },
-      { $skip: req.query.start ? parseInt(req.query.start) : 0 },
-      { $limit: req.query.limit ? parseInt(req.query.limit) : 20 },
+      { $skip: start },
+      { $limit: limit },
+      { $sort: { mainId: -1 } },
     ]);
 
-    await shuffle(host);
+    // await shuffle(host);
+    console.log('skip : ', skip);
+    console.log('countHost : ', countHost);
+    console.log('host.length : ', host.length);
+
     return res.status(200).send({
       status: true,
       message: 'success!!',
+      start:
+        host.length == countHost ? start : skip >= start ? skip : host.length,
       total: host.length,
       host: host,
     });
@@ -1162,14 +1192,14 @@ exports.addLessCoinHost = async (req, res) => {
     }
 
     host.coin = coin;
-    host.receiveCoin += coin;
+    host.receiveCoin += parseInt(coin);
 
     await host.save();
 
     const hostHistory = new History();
 
     hostHistory.hostId = host._id;
-    hostHistory.hCoin = coin;
+    hostHistory.hCoin = parseInt(coin);
     hostHistory.type = 5;
     hostHistory.date = new Date().toLocaleString('en-US', {
       timeZone: 'Asia/Kolkata',
@@ -1182,7 +1212,7 @@ exports.addLessCoinHost = async (req, res) => {
       .send({ status: true, message: 'success!!', response: host });
   } catch (error) {
     console.log(error);
-    res.status(200).send({ status: true, message: 'Internal server error' });
+    res.status(500).send({ status: false, message: 'Internal server error' });
   }
 };
 

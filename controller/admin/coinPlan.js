@@ -11,6 +11,7 @@ const History = require('../../model/history');
 const Setting = require('../../model/setting');
 const User = require('../../model/user');
 const FlashCoin = require('../../model/flashCoin');
+const FlashVipPlan = require('../../model/vipFlashCoin');
 
 exports.store = async (req, res) => {
   try {
@@ -459,15 +460,61 @@ exports.payGooglePlay = async (req, res) => {
           .send({ status: false, message: 'plan not exists' });
       }
 
-      
       const purchaseHistory = new VipPlanHistory();
       purchaseHistory.userId = user._id;
       purchaseHistory.planId = plan._id;
 
       const validDate = moment().add(plan.validity, `${plan.validityType}`);
       purchaseHistory.expireDate = validDate.toISOString();
-
       await purchaseHistory.save();
+
+      const userHistory = new History();
+      userHistory.userId = user._id;
+      userHistory.planId = plan._id;
+      userHistory.paymentGateway = req?.body?.paymentGateway
+        ? req?.body?.paymentGateway
+        : null;
+      userHistory.uCoin = 0;
+      userHistory.date = new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Kolkata',
+      });
+      userHistory.type = 10;
+      await userHistory.save();
+
+      return res.status(200).json({
+        status: true,
+        message: 'success',
+        user: { ...user.toObject(), isVip: true },
+      });
+    } else if (req?.body?.type === 'flashVip') {
+      plan = await FlashVipPlan.findById(req.body.planId);
+      if (!plan) {
+        return res
+          .status(200)
+          .send({ status: false, message: 'plan not exists' });
+      }
+
+      const purchaseHistory = new VipPlanHistory();
+      purchaseHistory.userId = user._id;
+      purchaseHistory.vipFlashPlanId = plan._id;
+
+      const validDate = moment().add(plan.validity, `${plan.validityType}`);
+      purchaseHistory.expireDate = validDate.toISOString();
+      await purchaseHistory.save();
+
+      const userHistory = new History();
+      userHistory.userId = user._id;
+      userHistory.planId = plan._id;
+      userHistory.paymentGateway = req?.body?.paymentGateway
+        ? req?.body?.paymentGateway
+        : null;
+      userHistory.uCoin = 0;
+      userHistory.date = new Date().toLocaleString('en-US', {
+        timeZone: 'Asia/Kolkata',
+      });
+      userHistory.type = 11;
+      await userHistory.save();
+
       return res.status(200).json({
         status: true,
         message: 'success',
@@ -506,7 +553,7 @@ exports.payGooglePlay = async (req, res) => {
     user.purchageCoin += plan.coin;
     await user.save();
 
-    const planCoin = await plan.coin
+    const planCoin = await plan.coin;
 
     const userHistory = new History();
 
@@ -524,11 +571,17 @@ exports.payGooglePlay = async (req, res) => {
       userHistory.type = 2;
     } else if (req?.body?.type === 'flashCoin') {
       userHistory.type = 7;
+    } else if (req?.body?.type === 'vipPlan') {
+      userHistory.type = 7;
+    } else if (req?.body?.type === 'flashVip') {
+      userHistory.type = 7;
     }
 
     await userHistory.save();
 
-    return res.status(200).json({ status: true, message: 'success', planCoin, user });
+    return res
+      .status(200)
+      .json({ status: true, message: 'success', planCoin, user });
     // }
     // return res
     //   .status(200)

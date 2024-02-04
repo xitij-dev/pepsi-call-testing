@@ -71,7 +71,7 @@ admin.initializeApp({
 
 const db = admin.database();
 
-const usersRef = db.ref('liveUser');
+global.usersRef = db.ref('liveUser');
 
 const LiveUserFunction = async (host, data) => {
   host.name = data.name;
@@ -113,7 +113,7 @@ io.on('connect', async (socket) => {
   }, 6000);
 
   let pingTimeout = setTimeout(() => {
-    console.log('PING TIMOUT SOCKET DISCONNECT ====================');
+    console.log('PING TIMOUT SOCKET DISCONNECT ====================', id);
     socket.disconnect(true);
   }, 14000);
 
@@ -171,7 +171,8 @@ io.on('connect', async (socket) => {
   // connect host in live room
   socket.on('liveRoomConnect', async (data) => {
     console.log(
-      'liveRoomConnect  ma ayvuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu'
+      'liveRoomConnect  ma ayvuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu',
+      data
     );
     const liveStream = await LiveStreamingHistory.findById(data.liveRoomId);
     let hostData;
@@ -190,79 +191,72 @@ io.on('connect', async (socket) => {
     socket.join(data.liveRoomId);
 
     io.in(data.liveRoomId).emit('liveRoomConnect', hostData);
-    usersRef
-      .push(data) // This will create a new unique key for each user
-      .then(() => {
-        console.log('Data stored successfully in the database');
-      })
-      .catch((error) => {
-        console.error('Error storing data:', error);
-      });
   });
   // connect host in live room
   socket.on('liveRejoin', async (data) => {
-    console.log('liveReJoin Listen ===============');
-    socket.join(data?.liveRoomId);
-    let hostData;
-    const host = await Host.findById(data?.liveHostId).populate(
-      'countryId',
-      'name flag'
-    );
-    if (host) {
-      host.isLive = true;
-      await host.save();
-    }
-    const existLiveUser = await LiveUser.findOne({
-      liveHostId: liveHostRoom,
-    });
+    console.log('liveReJoin Listen ===============', data);
+    if (data?.isVideo) {
+      console.log('isVideo  ===============');
 
-    if (!existLiveUser) {
-      const liveUser = new LiveUser();
-      await LiveUserFunction(liveUser, host);
-      usersRef
-        .push(data) // This will create a new unique key for each user
-        .then(() => {
-          console.log('Data stored successfully in the database');
-        })
-        .catch((error) => {
-          console.error('Error storing data:', error);
-        });
-      hostData = liveUser;
+      socket.join(data?.callId);
     } else {
-      await LiveUserFunction(existLiveUser, host);
-      hostData = existLiveUser;
+      socket.join(data?.liveRoomId);
+      if (data.isLive) {
+        console.log('data.live  ===============', data.isLive);
+        let hostData;
+        const host = await Host.findById(data?.liveHostId).populate(
+          'countryId'
+        );
+        if (host) {
+          host.isLive = true;
+          await host.save();
+        }
+        const existLiveUser = await LiveUser.findOne({
+          liveHostId: liveHostRoom,
+        });
+
+        if (!existLiveUser) {
+          console.log(' not  existLiveUser ', host);
+          // const liveUser = new LiveUser();
+          // await LiveUserFunction(liveUser, host);
+          //   let data2 = {
+          //     liveHostId :host?._id.toString()
+          //     liveRoomId :
+          //   }
+          //   usersRef
+          //     .push(data) // This will create a new unique key for each user
+          //     .then(() => {
+          //       console.log('Data stored successfully in the database');
+          //     })
+          //     .catch((error) => {
+          //       console.error('Error storing data:', error);
+          //     });
+          //   hostData = liveUser;
+          // }
+        }
+      }
     }
-    console.log('hostData dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', hostData);
   });
 
   socket.on('livePauseResume', async (data) => {
     console.log('livePauseResume listen  ==== ', data);
     const socket1 = await io.in(data.liveStreamingId).fetchSockets();
     console.log('socket1?.length', socket1?.length);
-    io.to(data?.liveStreamingId).emit(
-      'livePauseResume',
-      data,
-      (acknowledgment) => {
-        if (acknowledgment) {
-          console.log(
-            'Number of clients that acknowledged:',
-            acknowledgment.length
-          );
-        } else {
-          console.log('No acknowledgment received');
-        }
-      }
-    );
+    io.to(data?.liveStreamingId).emit('livePauseResume', data);
   });
 
+  // // pepsi-call-testing
   socket.on('removeQueue', async (data_) => {
     console.log('REMOVE QUE LISTEN ============================ : ', data_);
     const finalData = JSON.parse(data_);
-    await CallMatchUser.deleteOne({
+    let connectedHost;
+
+    const user = await User.findById(finalData.userId);
+    const deleteUser = await CallMatchUser.deleteOne({
       userId: finalData.userId,
     });
-    let connectedHost;
-    const user = await User.findById(finalData.userId);
+
+    console.log('deleteUser == ', finalData.userId, deleteUser.deletedCount);
     connectedHost = await User.findOne({
       _id: { $ne: user._id },
       recentConnectionId: user?.recentConnectionId,
@@ -282,7 +276,7 @@ io.on('connect', async (socket) => {
       );
       socket
         .in('globalRoom:' + connectedHost._id.toString())
-        .emit('callCancel'); // @todo callCancel listen kare chhe k nai ... callconnect thya pachhi
+        .emit('callCancel');
     }
     if (user) {
       if (history?.isPrivate) {
@@ -293,20 +287,29 @@ io.on('connect', async (socket) => {
       }
       await user?.save();
     }
+
     queue.active(async function (err, ids) {
+      console.log('active Ids ========= in remove que : ', ids);
       await new Promise((resolve, reject) => {
         ids.forEach(function (id) {
+          // console.log("inactive job : ", id);
           kue.Job.get(id, function (err, job) {
             if (
-              job.type === 'Pepsi-testing' &&
-              job.data.userId === finalData.userId
+              job?.type === 'Pepsi-new-userUserCall' &&
+              job?.data.userId === finalData.userId?.toString()
             ) {
-              console.log('active Id ');
-              console.log(
-                'remove thava aavyu in removeQUE ==',
-                finalData.userId
-              );
-              job.remove();
+              job.remove((error) => {
+                if (error) {
+                  console.log('error on active remove job ', error);
+                  return;
+                } else {
+                  console.log(
+                    'remove thava aavyu ================active === in remove Que',
+                    job?.id,
+                    job.data.userId
+                  );
+                }
+              });
             }
           });
         });
@@ -314,16 +317,27 @@ io.on('connect', async (socket) => {
       });
     });
     queue.inactive(async function (err, ids) {
+      console.log('inactive Ids ========= = in remove que: ', ids);
       await new Promise((resolve, reject) => {
-        ids.forEach(function (id) {
-          kue.Job.get(id, function (err, job) {
+        ids.forEach(async function (id) {
+          // console.log("inactive job : ", id);
+          kue.Job.get(id, async function (err, job) {
             if (
-              job.type === 'Pepsi-testing' &&
-              job.data.userId === finalData.userId
+              job?.type === 'Pepsi-new-userUserCall' &&
+              job?.data?.userId === finalData.userId?.toString()
             ) {
-              console.log('inactive Id ');
-              console.log('remove thava aavyu in removeQUE ', finalData.userId);
-              job.remove();
+              job.remove((error) => {
+                if (error) {
+                  console.log('error on inactive remove job ', error);
+                  return;
+                } else {
+                  console.log(
+                    'remove thava aavyu ================inactive=== in remove Que',
+                    job.id,
+                    job.data.userId
+                  );
+                }
+              });
             }
           });
         });
@@ -348,9 +362,6 @@ io.on('connect', async (socket) => {
     io.in(data.liveStreamingId).emit('comment', data);
     const socket1 = await io.in(data.liveStreamingId).fetchSockets();
     console.log('socket in comment ', socket1?.length);
-
-    const abcd = io.sockets.adapter.rooms.get(data.liveStreamingId);
-    console.log('comment ROOMS  ......', abcd);
   });
 
   // Get Profile in live
@@ -517,7 +528,7 @@ io.on('connect', async (socket) => {
 
     const gifts = JSON.parse(giftData.gift);
 
-    const senderUser = await User.findById(giftData.senderUserId);
+    let senderUser = await User.findById(giftData.senderUserId);
 
     let receiverHost;
 
@@ -581,13 +592,21 @@ io.on('connect', async (socket) => {
         receiverHost.receiveGift += 1;
         await receiverHost.save();
       }
-
+      const vipPlan = await VipPlanHistory.findOne({
+        userId: senderUser._id,
+        isActive: true,
+      }).sort({
+        createdAt: -1,
+      });
+      senderUser = { ...senderUser?._doc, isVip: vipPlan ? true : false };
+      console.log('senderUser === 😀😀😀😀😀😀😀😀😀', senderUser);
       if (giftData.video) {
         console.log(
           '😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀'
         );
         if (!giftData.isHost) {
           console.log('userUserCall gift ');
+
           // emit seperatly because both users not connected in callId room
           io.in('globalRoom:' + giftData.senderUserId).emit(
             'gift',
@@ -723,19 +742,32 @@ io.on('connect', async (socket) => {
     console.log('Data in call Confirm ==========================> ', data);
 
     const room = 'globalRoom:' + data.callerId.toString();
-
     if (room) {
       io.in(room).emit('callConfirmed', data);
+    }
+    let callerUser;
+    if (data.type == 'user') {
+      callerUser = await User.findOne({ _id: data.callerId });
+    } else {
+      callerUser = await Host.findOne({ _id: data.callerId });
+    }
+    if (callerUser?.recentConnectionId !== data?.callId) {
+      console.log(
+        'callCancel emit in call Confirm ==========================> ',
+        data.receiverId
+      );
+
+      io.in('globalRoom' + data.receiverId).emit('callCancel', data);
+      return;
     }
   });
 
   // Call Answer Socket
   socket.on('callAnswer', async (data) => {
+    console.log('Data in call Answer ==========================> ', data);
     const callerIdRoom = 'globalRoom:' + data.callerId.toString();
     const receiverIdRoom = 'globalRoom:' + data.receiverId.toString();
-    console.log(callerIdRoom, receiverIdRoom);
 
-    console.log('Data in call Answer ==========================> ', data);
     let user, host, receiverAvailable;
     if (data.type == 'user') {
       console.log('type =====user');
@@ -764,13 +796,36 @@ io.on('connect', async (socket) => {
       }
     }
     const jsonString = JSON.stringify(data);
-    // writeLogMessage(
-    //   logFile,
-    //   `${jsonString} >>>>>>callAnswer////>>>>> ${callerIdRoom}`,
-    //   'Listen Data',
-    //   'callAnswer event'
-    // );
+
     if (!data.isAccept) {
+      usersRef
+        .orderByChild('liveHostId')
+        .equalTo(host?._id.toString())
+        .once('value')
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            const keyToUpdate = Object.keys(snapshot.val())[0];
+            const existingData = snapshot.val()[keyToUpdate];
+            const newData = {
+              ...existingData,
+              isBusy: false,
+            };
+            console.log(
+              '==================isBusy update false ==========',
+              host?.name
+            );
+            return usersRef.child(keyToUpdate).update(newData);
+          } else {
+            console.log('No matching data found in  false  ====');
+          }
+        })
+        .then(() => {
+          console.log('isBusy field updated successfully');
+        })
+        .catch((error) => {
+          console.error('Error updating isBusy field:', error);
+        });
+
       if (!receiverAvailable) {
         console.log(
           'receiver unavailable............recentConnection and callId different ',
@@ -817,6 +872,34 @@ io.on('connect', async (socket) => {
       }
     } else {
       if (host.recentConnectionId == data.callId) {
+        usersRef
+          .orderByChild('liveHostId')
+          .equalTo(host._id.toString())
+          .once('value')
+          .then((snapshot) => {
+            if (snapshot.exists()) {
+              const keyToUpdate = Object.keys(snapshot.val())[0];
+              const existingData = snapshot.val()[keyToUpdate];
+              const newData = {
+                ...existingData,
+                isBusy: true,
+              };
+              console.log(
+                '==================isBusy update ==========',
+                host?.name
+              );
+              return usersRef.child(keyToUpdate).update(newData);
+            } else {
+              console.log('No matching data found in callAPI  ====');
+            }
+          })
+          .then(() => {
+            console.log('isBusy field updated successfully');
+          })
+          .catch((error) => {
+            console.error('Error updating isBusy field:', error);
+          });
+
         if (callerIdRoom) {
           console.log('callAnswer  emit ..........', callerIdRoom);
 
@@ -908,128 +991,7 @@ io.on('connect', async (socket) => {
     );
   });
 
-  // Call Receive Socket
-  // socket.on('callReceive', async (data) => {
-  //   console.log('--------------------callReceive data----------', data);
-  //   s;
-  //   // writeLogMessage(
-  //   //   logFile,
-  //   //   `Call Receive Event Data : ${JSON.stringify(
-  //   //     data
-  //   //   )} ========================> CallType: ${data?.callType}`,
-  //   //   'Type',
-  //   //   'callReceive event'
-  //   // );
-  //   const randomHistory = await RandomMatchHistory.findOne({
-  //     callId: data?.callId,
-  //   });
-  //   if (randomHistory) {
-  //     randomHistory.isMiscall = false;
-  //     await randomHistory.save();
-  //   }
-
-  //   const callDetail = await History.findById(data?.callId);
-
-  //   if (callDetail) {
-  //     if (data.callType === 'random') {
-  //       callDetail.isRandom = true;
-  //     } else if (data.callType === 'private') {
-  //       callDetail.isPrivate = true;
-  //     }
-  //     await callDetail.save();
-
-  //     const user = await User.findById(callDetail?.userId);
-  //     const host = await Host.findById(callDetail?.hostId);
-
-  //     const number = await roundNumber(data?.coin, 'call');
-
-  //     // if (data?.callType === 'private') {
-  //     //   writeLogMessage(
-  //     //     logFile,
-  //     //     `${host?.name} Private Call Charge : ${
-  //     //       host?.callCharge
-  //     //     } ========================> admin tax: ${40} ==================> host achieve: ${number}  ==================> user lost: ${
-  //     //       data.coin
-  //     //     } `,
-  //     //     'CHARGE',
-  //     //     'callReceive event'
-  //     //   );
-  //     // } else if (data?.callType === 'random') {
-  //     //   writeLogMessage(
-  //     //     logFile,
-  //     //     `Random Call Charge : ${600} ========================> user lost: ${
-  //     //       data.coin
-  //     //     }`,
-  //     //     'CHARGE',
-  //     //     'callReceive event'
-  //     //   );
-  //     // }
-
-  //     if (user && user.coin >= data?.coin) {
-  //       if (data.useCard && user.remainFreeCall > 0) {
-  //         user.remainFreeCall -= 1;
-  //         await user.save();
-  //       }
-  //       // console.log(
-  //       //   "------------------log padyo ho bhai ----------------------"
-  //       // );
-
-  //       const history = await History.findOneAndUpdate(
-  //         { _id: videoCall, callConnect: false },
-  //         {
-  //           $set: {
-  //             callConnect: true,
-  //             callStartTime: new Date().toLocaleString('en-US', {
-  //               timeZone: 'Asia/Kolkata',
-  //             }),
-  //           },
-  //         },
-  //         {
-  //           $new: true,
-  //         }
-  //       );
-
-  //       // coin cut from user
-  //       // writeLogMessage(
-  //       //   logFile,
-  //       //   `${user?.name} coin before ${data?.callType} Call charge cut :  ${user?.coin} `,
-  //       //   'USER',
-  //       //   'callReceive event'
-  //       // );
-  //       callDetail.uCoin += data?.coin;
-  //       await callDetail.save();
-  //       user.coin -= data?.coin;
-  //       await user.save();
-  //       // writeLogMessage(
-  //       //   logFile,
-  //       //   `${user?.name} coin after ${data?.callType} Call charge cut :  ${user?.coin} `,
-  //       //   'USER',
-  //       //   'callReceive event'
-  //       // );
-
-  //       // when user-host call make user coin cut
-
-  //       io.in(videoCall).emit('callReceive', user, host);
-
-  //       // writeLogMessage(
-  //       //   logFile,
-  //       //   `Successful end for coin cut operation `,
-  //       //   'END',
-  //       //   'callReceive event'
-  //       // );
-  //     } else {
-  //       // writeLogMessage(
-  //       //   logFile,
-  //       //   `${user.name} not have sufficient coin for call `,
-  //       //   'USER',
-  //       //   'callReceive event'
-  //       // );
-  //     }
-  //   }
-  // });
-
   socket.on('vChat', async (data) => {
-    // console.log(" @@@ data in vChat @@@", data);
     io.in(videoCall).emit('vChat', data);
   });
 
@@ -1161,6 +1123,7 @@ io.on('connect', async (socket) => {
     //   'callDisconnect EMIT .......... ',
     //   'callDisconnect >>>>'
     // );
+
     socket.in(data.callId).emit('callDisconnect', data?.callId);
     const history = await History.findById(data?.callId);
 
@@ -1246,6 +1209,37 @@ io.on('connect', async (socket) => {
         }
       }
     }
+    if (host) {
+      usersRef
+        .orderByChild('liveHostId')
+        .equalTo(host._id.toString())
+        .once('value')
+        .then((snapshot) => {
+          if (snapshot.exists()) {
+            const keyToUpdate = Object.keys(snapshot.val())[0];
+            const existingData = snapshot.val()[keyToUpdate];
+            const newData = {
+              ...existingData,
+              isBusy: false,
+            };
+            console.log(
+              '==================isBusy update false callDisconnect ==========',
+              host?.name
+            );
+            return usersRef.child(keyToUpdate).update(newData);
+          } else {
+            console.log(
+              'No matching data found in  false callDisconnect  ===='
+            );
+          }
+        })
+        .then(() => {
+          console.log('isBusy field updated successfully callDisconnect');
+        })
+        .catch((error) => {
+          console.error('Error updating isBusy field: callDisconnect', error);
+        });
+    }
     if (data?.callId && !history.callEndTime && history.callStartTime) {
       const history_ = await History.findOneAndUpdate(
         { _id: data?.callId, callEndTime: { $eq: null } },
@@ -1271,60 +1265,6 @@ io.on('connect', async (socket) => {
         await history_.save();
         await hostCoinEarnedHistory(history_?._id);
       }
-      // host give coin for call duration wise
-
-      // if (history.isRandom && history.isPrivate) {
-      //   const randomCallAmount = 600;
-
-      //   console.log('historyyyyyyyyyyyyyyyyyyyyyy', history_);
-      //   const privateCallAmount =
-      //     ((parseInt(history_?.duration) - parseInt(30)) * host.callCharge) /
-      //     60;
-
-      //   const numberR = await roundNumber(randomCallAmount, 'call');
-
-      //   const numberP = await roundNumber(privateCallAmount, 'call');
-      //   history_.hCoin = numberP + numberR;
-      //   await history_.save();
-
-      //   host.coin += numberR + numberP;
-      //   await host.save();
-
-      //   // writeLogMessage(
-      //   //   logFile,
-      //   //   `${host.name} coin after random charge add : ${host.coin} `,
-      //   //   'HOST',
-      //   //   'VideoCall Socket Disconnect'
-      //   // );
-      // } else if (history.isRandom) {
-      //   const amount = (parseInt(history_.duration) * 600) / 30;
-
-      //   const number = await roundNumber(amount, 'call');
-
-      //   history_.hCoin = number;
-      //   await history_.save();
-      //   host.coin += number;
-      //   await host.save();
-      //   // writeLogMessage(
-      //   //   logFile,
-      //   //   `${host.name} coin after random charge add : ${host.coin} `,
-      //   //   'HOST',
-      //   //   'VideoCall Socket Disconnect'
-      //   // );
-      // } else if (history.isPrivate) {
-      //   const amount = (parseInt(history_.duration) * host.callCharge) / 60;
-      //   const number = await roundNumber(amount, 'call');
-      //   history_.hCoin = number;
-      //   await history_.save();
-      //   host.coin += number;
-      //   await host.save();
-      //   // writeLogMessage(
-      //   //   logFile,
-      //   //   `${host.name} coin after private charge add : ${host.coin} `,
-      //   //   'HOST',
-      //   //   'VideoCall Socket DisConnect'
-      //   // );
-      // }
     }
     console.log(
       'CALLDISCONNECT   : host : =============== ',
@@ -1340,6 +1280,7 @@ io.on('connect', async (socket) => {
 
   // when user coin cut in call
   socket.on('userCoinCut', async (data) => {
+    console.log('userCoinCut :  =============== ', data);
     const user = await User.findById(data?.userId);
 
     if (user?.coin > data?.coin) {
@@ -1357,15 +1298,12 @@ io.on('connect', async (socket) => {
 
   // when user decline the call
   socket.on('callCancel', async (data) => {
-    console.log('callCancel emit data ============', data);
+    console.log('callCancel emit data ===================', data);
     const room = 'globalRoom:' + data?.recieverId;
     console.log('room', room);
     if (room) {
-      console.log(
-        '------++++++++++++++++-----------callCancel emitted -------+++++++++++++----'
-      );
-
       if (data.callId) {
+        console.log('CALL CANCEL callId EXIST  ====');
         const history = await History.findById(data?.callId);
         if (history) {
           let host;
@@ -1378,6 +1316,35 @@ io.on('connect', async (socket) => {
             host.isBusy = false;
             host.recentConnectionId = null;
             await host.save();
+            usersRef
+              .orderByChild('liveHostId')
+              .equalTo(host._id.toString())
+              .once('value')
+              .then((snapshot) => {
+                if (snapshot.exists()) {
+                  const keyToUpdate = Object.keys(snapshot.val())[0];
+                  const existingData = snapshot.val()[keyToUpdate];
+                  const newData = {
+                    ...existingData,
+                    isBusy: false,
+                  };
+                  console.log(
+                    '==================isBusy update false callCancel ==========',
+                    host?.name
+                  );
+                  return usersRef.child(keyToUpdate).update(newData);
+                } else {
+                  console.log(
+                    'No matching data found in  false callCancel  ===='
+                  );
+                }
+              })
+              .then(() => {
+                console.log('isBusy field updated successfully callCancel');
+              })
+              .catch((error) => {
+                console.error('Error updating isBusy field callCancel:', error);
+              });
           }
           const user = await User.findById(history?.userId);
           if (user) {
@@ -1386,86 +1353,184 @@ io.on('connect', async (socket) => {
             await user.save();
           }
         }
-        // writeLogMessage(
-        //   logFile,
-        //   `${room} `,
-        //   'callCancel EMIT ',
-        //   'callCancel >>>>'
-        // );
-        // console.log("callCancel emit in room ", room);
-        console.log(
-          'callCancel emit ...........callCancel.............................room ',
-          room
-        );
-
         io.in(room).emit('callCancel', data);
       } else if (data?.type === 'user') {
+        console.log('CALL CANCEL TYPE USER ====');
+
         const user = await User.findById(data?.callerId);
-        let host;
-        const hostData = await Host.findById(data?.recieverId);
-        const userData = await User.findById(data?.recieverId);
+        if (user?.recentConnectionId) {
+          let host;
+          const hostData = await Host.findById(data?.recieverId);
+          const userData = await User.findById(data?.recieverId);
 
-        if (hostData) {
-          host = hostData;
-        } else {
-          host = userData;
-        }
-        if (user.recentConnectionId === host.recentConnectionId) {
-          console.log(
-            host?.name,
-            user?.name,
-            'type ================user =====both in  call cancle and is busy recentC .. false'
-          );
-          if (host) {
-            host.isBusy = false;
-            host.recentConnectionId = null;
-            await host.save();
+          if (hostData) {
+            host = hostData;
+          } else {
+            host = userData;
           }
-          // writeLogMessage(
-          //   logFile,
-          //   `${room} `,
-          //   'callCancel EMIT user......',
-          //   'callCancel >>>>'
-          // );
-          console.log(
-            'callCancel emit ...........callCancel.............................room ',
-            room
-          );
-
-          io.in(room).emit('callCancel', data);
-        }
-        if (user) {
-          user.isBusy = false;
-          user.recentConnectionId = null;
-          await user.save();
-        }
-      } else if (data?.type === 'host') {
-        let host = await Host.findById(data?.callerId);
-        let user = await User.findById(data?.recieverId);
-        if (host.recentConnectionId == user.recentConnectionId) {
           console.log(
             host?.name,
             user?.name,
-            'type ================host  =====both in  call cancle and is busy recentC.. false'
+            'type ================user ===== both in  call cancle and is busy recentC .. false'
           );
+          if (user?.recentConnectionId === host?.recentConnectionId) {
+            console.log('connectionId same');
+            if (host) {
+              host.isBusy = false;
+              host.recentConnectionId = null;
+              await host.save();
+              usersRef
+                .orderByChild('liveHostId')
+                .equalTo(host._id.toString())
+                .once('value')
+                .then((snapshot) => {
+                  if (snapshot.exists()) {
+                    const keyToUpdate = Object.keys(snapshot.val())[0];
+                    const existingData = snapshot.val()[keyToUpdate];
+                    const newData = {
+                      ...existingData,
+                      isBusy: false,
+                    };
+                    console.log(
+                      '==================isBusy update false  callCancel==========',
+                      host?.name
+                    );
+                    return usersRef.child(keyToUpdate).update(newData);
+                  } else {
+                    console.log(
+                      'No matching data found in  false  callCancel===='
+                    );
+                  }
+                })
+                .then(() => {
+                  console.log('isBusy field updated successfully callCancel');
+                })
+                .catch((error) => {
+                  console.error(
+                    'Error updating isBusy field callCancel:',
+                    error
+                  );
+                });
+            }
+            io.in(room).emit('callCancel', data);
+          }
           if (user) {
             user.isBusy = false;
             user.recentConnectionId = null;
             await user.save();
           }
-
-          console.log(
-            'callCancel emit ...........callCancel.............................room ',
-            room
-          );
-
-          io.in(room).emit('callCancel', data);
+        } else {
+          setTimeout(async () => {
+            // setTimeOut add because callCancel listen before call is in Process and in process func again isBusy = true ...
+            console.log(
+              'SET TIMEOUT in callcancel TYPE : user ================'
+            );
+            const user = await User.findById(data?.callerId);
+            let host;
+            const hostData = await Host.findById(data?.recieverId);
+            const userData = await User.findById(data?.recieverId);
+            if (hostData) {
+              host = hostData;
+            } else {
+              host = userData;
+            }
+            console.log(
+              host?.name,
+              user?.name,
+              'type ================user ===== both in  call cancle and is busy recentC .. false'
+            );
+            if (user?.recentConnectionId === host?.recentConnectionId) {
+              console.log('connectionId same');
+              if (host) {
+                host.isBusy = false;
+                host.recentConnectionId = null;
+                await host.save();
+              }
+              io.in(room).emit('callCancel', data);
+            }
+            if (user) {
+              user.isBusy = false;
+              user.recentConnectionId = null;
+              await user.save();
+            }
+          }, 1500);
         }
-        console.log(host?._id, user?._id, 'type ================host');
+      } else if (data?.type === 'host') {
+        console.log('CALL CANCEL TYPE HOST ====');
+        let host = await Host.findById(data?.callerId);
+        let user = await User.findById(data?.recieverId);
+        console.log(
+          host?.name,
+          user?.name,
+          'type ================user ===== both in  call cancle and is busy recentC .. false'
+        );
         if (host) {
-          host.isBusy = false;
-          host.recentConnectionId = null;
-          await host.save();
+          usersRef
+            .orderByChild('liveHostId')
+            .equalTo(host._id.toString())
+            .once('value')
+            .then((snapshot) => {
+              if (snapshot.exists()) {
+                const keyToUpdate = Object.keys(snapshot.val())[0];
+                const existingData = snapshot.val()[keyToUpdate];
+                const newData = {
+                  ...existingData,
+                  isBusy: false,
+                };
+                console.log(
+                  '==================isBusy update false callCancel==========',
+                  host?.name
+                );
+                return usersRef.child(keyToUpdate).update(newData);
+              } else {
+                console.log('No matching data found in  false callCancel====');
+              }
+            })
+            .then(() => {
+              console.log('isBusy field updated successfully callCancel');
+            })
+            .catch((error) => {
+              console.error('Error updating isBusy field callCancel:', error);
+            });
+        }
+
+        if (host?.recentConnectionId) {
+          if (host?.recentConnectionId == user?.recentConnectionId) {
+            console.log('connectionId same');
+            if (user) {
+              user.isBusy = false;
+              user.recentConnectionId = null;
+              await user.save();
+            }
+            io.in(room).emit('callCancel', data);
+          }
+          if (host) {
+            host.isBusy = false;
+            host.recentConnectionId = null;
+            await host.save();
+          }
+        } else {
+          setTimeout(async () => {
+            let host = await Host.findById(data?.callerId);
+            let user = await User.findById(data?.recieverId);
+            console.log(
+              'SET TIMEOUT in callcancel TYPE : host ================'
+            );
+            if (host?.recentConnectionId == user?.recentConnectionId) {
+              console.log('connectionId same');
+              if (user) {
+                user.isBusy = false;
+                user.recentConnectionId = null;
+                await user.save();
+              }
+              io.in(room).emit('callCancel', data);
+            }
+            if (host) {
+              host.isBusy = false;
+              host.recentConnectionId = null;
+              await host.save();
+            }
+          }, 1500);
         }
       }
     }
@@ -1541,19 +1606,23 @@ io.on('connect', async (socket) => {
       await host.save();
     } else {
       if (data?.type == 'user') {
+        await CallMatchUser.deleteOne({ userId: id });
         const user = await User.findById(data?.userId);
         if (user) {
-          const history = await History.findById(user?.recentConnectionId);
+          let history;
           let connectedHost;
-          if (history?.hostId != null) {
-            connectedHost = await Host.findOne({
-              recentConnectionId: user?.recentConnectionId,
-            });
-          } else {
-            connectedHost = await User.findOne({
-              _id: { $ne: user._id },
-              recentConnectionId: user?.recentConnectionId,
-            });
+          if (user?.recentConnectionId) {
+            history = await History.findById(user.recentConnectionId);
+            if (!history || history?.hostId != null) {
+              connectedHost = await Host.findOne({
+                recentConnectionId: user?.recentConnectionId,
+              });
+            } else {
+              connectedHost = await User.findOne({
+                _id: { $ne: user._id },
+                recentConnectionId: user?.recentConnectionId,
+              });
+            }
           }
 
           if (history) {
@@ -1591,6 +1660,35 @@ io.on('connect', async (socket) => {
             connectedHost.isBusy = false;
             connectedHost.recentConnectionId = null;
             await connectedHost.save();
+            usersRef
+              .orderByChild('liveHostId')
+              .equalTo(connectedHost?._id.toString())
+              .once('value')
+              .then((snapshot) => {
+                if (snapshot.exists()) {
+                  const keyToUpdate = Object.keys(snapshot.val())[0];
+                  const existingData = snapshot.val()[keyToUpdate];
+                  const newData = {
+                    ...existingData,
+                    isBusy: false,
+                  };
+                  console.log(
+                    '==================isBusy update false ========== in manualDisconnect ',
+                    connectedHost?.name
+                  );
+                  return usersRef.child(keyToUpdate).update(newData);
+                } else {
+                  console.log(
+                    'No matching data found in  false  ==== manualDisconnect'
+                  );
+                }
+              })
+              .then(() => {
+                console.log('isBusy field updated successfully');
+              })
+              .catch((error) => {
+                console.error('Error updating isBusy field:', error);
+              });
           }
           user.isOnline = false;
           user.isBusy = false;
@@ -1618,9 +1716,6 @@ io.on('connect', async (socket) => {
             );
 
             io.socketsLeave(history?._id.toString());
-
-            const abcd = io.sockets.adapter.rooms.get(history._id);
-            console.log(abcd, 'room in disconnect HOST......');
           }
 
           if (connectedUser) {
@@ -1651,6 +1746,7 @@ io.on('connect', async (socket) => {
   socket.on('disconnect', async (reason) => {
     console.log(
       ` ========= ==  reason of disconnect is ========= = ====== =====`,
+      id,
       reason
     );
     clearInterval(pingInterval);
@@ -1667,7 +1763,11 @@ io.on('connect', async (socket) => {
         let user = await User.findOne({ _id: id });
 
         if (user) {
-          const history = await History.findById(user.recentConnectionId);
+          await CallMatchUser.deleteOne({ userId: id });
+          let history;
+          if (user.recentConnectionId) {
+            history = await History.findById(user.recentConnectionId);
+          }
           let connectedHost;
           if (history && history?.hostId != null) {
             connectedHost = await Host.findOne({
@@ -1806,7 +1906,7 @@ io.on('connect', async (socket) => {
           });
           if (liveUserExist) {
             setTimeout(async () => {
-              console.log('IN setTimeOut === ');
+              console.log('IN setTimeOut === ', id);
               const socket = await io.in('globalRoom:' + id).fetchSockets();
               if (socket?.length == 0) {
                 console.log('liveUser Delete in setTimeOut');
@@ -1865,6 +1965,8 @@ io.on('connect', async (socket) => {
                 host.isLive = false;
                 await host.save();
 
+                console.log('IN setTimeOut === host delete  ', host?.name);
+
                 await LiveView.deleteMany({
                   liveStreamingId: liveUserExist.liveStreamingId,
                 });
@@ -1873,6 +1975,39 @@ io.on('connect', async (socket) => {
             }, 5000);
           }
         }
+        queue.active(function (err, ids) {
+          ids.forEach(function (id_) {
+            kue.Job.get(id_, function (err, job) {
+              if (
+                job.type === 'Pepsi-new-userUserCall' &&
+                job.data.userId === id
+              ) {
+                job.remove(() => {
+                  console.log(
+                    'Removed active  Pepsi-new-userUserCall when global socket disconnect done'
+                  );
+                  randomRemove.stop = true;
+                });
+              }
+            });
+          });
+        });
+        queue.inactive(function (err, ids) {
+          ids.forEach(function (id_) {
+            kue.Job.get(id_, function (err, job) {
+              if (
+                job.type === 'Pepsi-new-userUserCall' &&
+                job.data.userId === id
+              ) {
+                job.remove(() => {
+                  console.log(
+                    'Removed inactive Pepsi-new-userUserCall when global socket disconnect done'
+                  );
+                });
+              }
+            });
+          });
+        });
       }
     }
 
@@ -1911,3 +2046,135 @@ io.on('connect', async (socket) => {
     });
   });
 });
+
+//pepsi user-user-call removeQue change
+
+// socket.on('removeQueue', async (data_) => {
+//   console.log('REMOVE QUE LISTEN ============================ : ', data_);
+//   const user = await User.findById(id);
+//   const finalData = JSON.parse(data_);
+//   const indexToRemove = userToUserCallIds.findIndex(
+//     (call) => call._id?.toString() === finalData?.userId
+//   );
+//   if (indexToRemove !== -1) {
+//     console.log(
+//       'userToUserCallIds index remove que ============================= ',
+//       indexToRemove
+//     );
+//     userToUserCallIds.splice(indexToRemove, 1); //if already caller is exist then remove
+//   }
+
+//   const history = await History.findById(user.recentConnectionId);
+//   let connectedHost;
+//   if (history?.hostId != null) {
+//     connectedHost = await Host.findOne({
+//       recentConnectionId: user?.recentConnectionId,
+//     });
+//   } else {
+//     connectedHost = await User.findOne({
+//       _id: { $ne: user._id },
+//       recentConnectionId: user?.recentConnectionId,
+//     });
+//   }
+//   if (connectedHost) {
+//     if (history?.isPrivate) {
+//       connectedHost.isBusy = true;
+//     } else {
+//       connectedHost.isBusy = false;
+//       connectedHost.recentConnectionId = null;
+//     }
+//     await connectedHost.save();
+//     console.log(
+//       'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+//       connectedHost._id.toString()
+//     );
+
+//     socket
+//       .in('globalRoom:' + connectedHost._id.toString())
+//       .emit('callCancel');
+//   }
+//   if (user) {
+//     if (history?.isPrivate) {
+//       user.isBusy = true;
+//     } else {
+//       user.recentConnectionId = null;
+//       user.isBusy = false;
+//     }
+//     await user?.save();
+//   }
+
+//   queue.active(async function (err, ids) {
+//     console.log('active Ids : ', ids);
+//     await new Promise((resolve, reject) => {
+//       ids.forEach(function (id) {
+//         // console.log("active job : ", id);
+//         kue.Job.get(id, function (err, job) {
+//           // console.log("active job: ", job.data);
+//           if (
+//             (job.type === 'new-call-random' ||
+//               job.type === 'Pepsi-user-user-call-random') &&
+//             job.data.userId === finalData.userId
+//           ) {
+//             console.log('remove thava aavyu ');
+//             job.remove((error) => {
+//               if (error) {
+//                 console.log('error on remove job ', error);
+//                 return;
+//               } else {
+//                 console.log('Job Remove Successfully......');
+//                 queueProcess.stopQueueProcess = true;
+//                 console.log(
+//                   'Job Remove Successfully......',
+//                   queueProcess.stopQueueProcess
+//                 );
+//               }
+//               randomRemove.stop = true;
+//             });
+//           }
+//         });
+//       });
+//       resolve();
+//     });
+//   });
+//   queue.inactive(async function (err, ids) {
+//     console.log('inactive Ids : ', ids);
+//     await new Promise((resolve, reject) => {
+//       ids.forEach(function (id) {
+//         // console.log("inactive job : ", id);
+//         kue.Job.get(id, function (err, job) {
+//           // console.log("inactive job: ", job.data);
+//           if (
+//             (job.type === 'new-call-random' ||
+//               job.type === 'Pepsi-user-user-call-random') &&
+//             job.data.userId === finalData.userId
+//           ) {
+//             console.log('remove thava aavyu ');
+//             job.remove(() => {
+//               randomRemove.stop = true;
+//             });
+//           }
+//         });
+//       });
+//       resolve();
+//     });
+//   });
+//   if (connectedHost && !history?.isPrivate) {
+//     console.log(
+//       'callCancel emit ...........removeQueue............................. connectedHost._id.toString()   ',
+//       connectedHost._id.toString()
+//     );
+//     socket
+//       .in('globalRoom:' + connectedHost._id.toString())
+//       .emit('callCancel');
+//   }
+//   console.log(
+//     'removeQueue : host : ',
+//     connectedHost?.isBusy,
+//     connectedHost?.recentConnectionId
+//   );
+//   console.log(
+//     'removeQueue : user : ',
+//     user?.isBusy,
+//     user?.recentConnectionId
+//   );
+// });

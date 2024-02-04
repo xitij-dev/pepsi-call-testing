@@ -7,6 +7,7 @@ const projectSettingSchema = new mongoose.Schema(
     amountPercentage: { type: Number, default: 0 },
     upperAmount: { type: Number, default: 0 },
     lowerAmount: { type: Number, default: 0 },
+    commissionPercentage: { type: Number, default: 0 },
   },
   {
     timestamps: true,

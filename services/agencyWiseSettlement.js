@@ -2,7 +2,7 @@ const moment = require('moment');
 const Host = require('../model/host');
 const HostSettlementHistory = require('../model/hostSettlementHistory');
 const AgencySettlementHistory = require('../model/agencySettlementHistory');
-const ProjectSeeting = require('../model/projectSetting');
+const ProjectSetting = require('../model/projectSetting');
 const Setting = require('../model/setting');
 const Agency = require('../model/agency');
 
@@ -50,6 +50,7 @@ exports.agencyWiseHostSettlement = async (req, res) => {
           endDate: moment().endOf('isoWeek').format('YYYY-MM-DD'),
         };
 
+        console.log('host?.coin', host?.coin);
         // for update host coin
         await Host.findOneAndUpdate(
           { _id: host._id },
@@ -67,24 +68,39 @@ exports.agencyWiseHostSettlement = async (req, res) => {
         hostData.push(data);
         hostCoin += host?.coin;
       }
-      await HostSettlementHistory.insertMany(hostData); // store settlement history
+      await HostSettlementHistory.insertMany(hostData);
 
-      // for agenncy settlement history
+      // for agency settlement history
       const agencyHistory = await AgencySettlementHistory.findOne({
         agencyId: agency,
-      }).sort({ _id: 1 }); // find last recodr for get total final amonut
+      }).sort({ _id: 1 });
 
-      const commission = await ProjectSeeting.findOne({}); // find for agency commission percentage
+      let commission = 0;
+      async function findCommission(coin) {
+        const setting = await ProjectSetting.find().sort({
+          upperAmount: 1,
+        });
+        // commission = setting[0].amountPercentage;
+        await setting.map(async (data) => {
+          if (coin >= data.upperAmount) {
+            commission = data.amountPercentage;
+            return 1;
+          }
+        });
+      }
 
-      const commissionCoin = (hostCoin * commission?.amountPercentage) / 100;
+      await findCommission(hostCoin);
+      console.log('commission', commission);
+      let commissionCoin;
+      commissionCoin = (hostCoin * commission) / 100;
       const newHistory = new AgencySettlementHistory();
       newHistory.agencyId = agency;
-      newHistory.agencyCommisionPercentage = commission?.amountPercentage;
+      newHistory.agencyCommisionPercentage = commission;
       newHistory.statusOfTransaction = 1;
       newHistory.coinEarned = hostCoin;
-      newHistory.commissionCoinEarned = commissionCoin.toFixed(2);
+      newHistory.commissionCoinEarned = parseInt(commissionCoin.toFixed(2));
       newHistory.totalCoinEarned =
-        newHistory.coinEarned + newHistory.commissionCoinEarned;
+        newHistory.coinEarned + parseInt(newHistory.commissionCoinEarned);
       newHistory.amount = newHistory.totalCoinEarned;
       newHistory.availableCoinAfterPaid = newHistory.amount;
       newHistory.startDate = moment().startOf('isoWeek').format('YYYY-MM-DD');
