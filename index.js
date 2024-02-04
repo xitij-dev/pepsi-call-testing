@@ -60,6 +60,7 @@ require('./socket');
 
 app.use('/kue-api', kue.app);
 
+<<<<<<< HEAD
 // pepsi -call -testing
 queue.process('Pepsi-new-userUserCall', async function (job, done) {
   try {
@@ -68,6 +69,11 @@ queue.process('Pepsi-new-userUserCall', async function (job, done) {
       job.data,
       job.id
     );
+=======
+queue.process('Pepsi-call-random', async function (job, done) {
+  try {
+    console.log('data when random call in process ', job.data);
+>>>>>>> d1e06f04616e32d61d05dc914cd97d9814c2be40
 
     kue.Job.rangeByType(
       'Pepsi-new-userUserCall',
@@ -148,6 +154,55 @@ queue.process('Pepsi-call-random', async function (job, done) {
     console.log(error);
   }
 });
+<<<<<<< HEAD
+=======
+
+// pepsi -call -testing
+queue.process('Pepsi-testing', async function (job, done) {
+  try {
+    console.log(
+      'data when random call in process ================== Pepsi-testing =====',
+      job.data,
+      job.id
+    );
+
+    kue.Job.rangeByType(
+      'Pepsi-call-random',
+      'active',
+      0,
+      -1,
+      'desc',
+      async function (err, jobs) {
+        if (err) {
+          console.log('Error:', err);
+          return;
+        }
+        await makeCallHistory(
+          job.data.userId,
+          job.data.type,
+          job.data.count,
+          job.data.uniqueId,
+          job.id,
+          done
+        );
+      }
+    );
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
+  try {
+    const user = await User.findById(job.data.userId);
+    userToUserCallIds.push(user);
+    console.log('data when random call in process ', job.data);
+    console.log('data  job.data.count === QUE  ', job.data.count);
+    console.log(
+      'userToUserCallIds in index.js ========= QUE ',
+      userToUserCallIds?.length
+    );
+>>>>>>> d1e06f04616e32d61d05dc914cd97d9814c2be40
 
 // queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
 //   try {
