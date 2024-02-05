@@ -21,6 +21,8 @@ const LiveUser = require('../../model/liveUser');
 const LiveStreamingHistory = require('../../model/liveStreamingHistory');
 const Agency = require('../../model/agency');
 const Redeem = require('../../model/redeem');
+const PrivateCallUserHost = require('../../model/privateCallUserHost');
+
 // FCM node
 // const {
 //   writeLogMessage,
@@ -35,18 +37,20 @@ const HostSettlementHistory = require('../../model/hostSettlementHistory');
 // Make Call API
 exports.makeCall = async (req, res) => {
   try {
+    const { callerId, receiverId, videoCallType, callType, charge, type } =
+      req.query;
+
     if (
-      !req.query ||
-      !req.query.callerId ||
-      !req.query.receiverId ||
-      !req.query.videoCallType ||
-      !req.query.callType ||
-      !req.query.charge ||
-      !req.query.type
+      !callerId ||
+      !receiverId ||
+      !videoCallType ||
+      !callType ||
+      !charge ||
+      !type
     ) {
       return res
         .status(200)
-        .json({ status: false, message: 'Invalid Details !' });
+        .json({ status: false, message: 'Invalid Details!' });
     }
 
     const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -60,12 +64,12 @@ exports.makeCall = async (req, res) => {
     let userQuery;
     let hostQuery;
 
-    if (req.query.videoCallType === 'user') {
-      userQuery = await User.findById(req.query.callerId);
-      hostQuery = await Host.findById(req.query.receiverId);
-    } else if (req.query.videoCallType === 'host') {
-      userQuery = await User.findById(req.query.receiverId);
-      hostQuery = await Host.findById(req.query.callerId);
+    if (videoCallType === 'user') {
+      userQuery = await User.findById(callerId);
+      hostQuery = await Host.findById(receiverId);
+    } else if (videoCallType === 'host') {
+      userQuery = await User.findById(receiverId);
+      hostQuery = await Host.findById(callerId);
     }
 
     const user = userQuery;
@@ -74,7 +78,6 @@ exports.makeCall = async (req, res) => {
         .status(200)
         .json({ status: false, message: 'User does not exists !' });
     }
-
     const host = hostQuery;
     if (!host) {
       return res
@@ -82,32 +85,22 @@ exports.makeCall = async (req, res) => {
         .json({ status: false, message: 'host does not exists !' });
     }
 
-    if (req.query.videoCallType === 'user') {
-      if (host.isBlock) {
+    if (videoCallType === 'user') {
+      if (host.isBlock || !host.isOnline || !host.isApproved) {
         return res.status(200).json({
           status: false,
-          message: 'Receiver Host is Block By Admin',
+          message: host.isBlock
+            ? 'Receiver Host is Block By Admin'
+            : !host.isOnline
+            ? 'Ops! host is not online.'
+            : 'host is not approved !',
         });
       }
-
-      if (!host.isOnline) {
-        return res.status(200).json({
-          status: false,
-          message: 'Ops! host is not online.',
-        });
-      }
-
       if (host.isBusy) {
         return res
           .status(200)
           .json({ status: false, message: 'host is busy with someone else !' });
       }
-      if (!host.isApproved) {
-        return res
-          .status(200)
-          .json({ status: false, message: 'host is not approved !' });
-      }
-
       if (user.isBusy) {
         return res.status(200).json({
           status: false,
@@ -116,18 +109,16 @@ exports.makeCall = async (req, res) => {
       }
     }
 
-    if (req.query.videoCallType === 'host') {
-      if (user.isBlock) {
+    if (videoCallType === 'host') {
+      if (user.isBlock || !user.isOnline || !host.isApproved) {
         return res.status(200).json({
           status: false,
           message: 'Receiver User is Block By Admin',
-        });
-      }
-
-      if (!user.isOnline) {
-        return res.status(200).json({
-          status: false,
-          message: 'Ops! user is not online.',
+          message: user.isBlock
+            ? 'Receiver User is Block By Admin'
+            : !user.isOnline
+            ? 'Ops! user is not online.'
+            : 'You are not approved !',
         });
       }
 
@@ -137,12 +128,6 @@ exports.makeCall = async (req, res) => {
           .json({ status: false, message: 'user is busy with someone else !' });
       }
 
-      if (!host.isApproved) {
-        return res
-          .status(200)
-          .json({ status: false, message: 'You are not approved !' });
-      }
-
       if (host.isBusy) {
         return res.status(200).json({
           status: false,
@@ -150,29 +135,174 @@ exports.makeCall = async (req, res) => {
         });
       }
     }
+    const privateCall = await new PrivateCallUserHost({
+      userId: user._id,
+      hostId: host._id,
+      isUser: videoCallType == 'user' ? true : false,
+    }).save();
 
-    const job = queue
-      .create('Pepsi-Call-User-Host-Call', {
-        callerId: req.query.callerId,
-        receiverId: req.query.receiverId,
-        videoCallType: req.query.videoCallType,
-        callType: req.query.callType,
-        callerImage: req.query.image,
-        callerName: req.query.name,
-        charge: parseInt(req.query.charge),
-        type: req.query.type,
-        token: '',
-        channel,
-      })
-      .removeOnComplete(true)
-      .save(function (err) {
-        if (!err) console.log(job.id);
-      });
-
-    return res.status(200).json({
+    res.status(200).json({
       status: true,
       message: 'Success!!',
     });
+    console.log('res send', videoCallType);
+
+    setTimeout(async () => {
+      let privateCallerExist;
+      if (videoCallType === 'user') {
+        privateCallerExist = await PrivateCallUserHost.find({
+          hostId: host._id,
+          isUser: videoCallType == 'user' ? true : false,
+        });
+      } else {
+        privateCallerExist = await PrivateCallUserHost.find({
+          userId: user._id,
+          isUser: videoCallType == 'user' ? true : false,
+        });
+      }
+      if (privateCallerExist.length > 0) {
+        if (videoCallType === 'user') {
+          if (privateCallerExist?.[0].userId.toString() == callerId) {
+            let userQuery, hostQuery;
+            if (videoCallType === 'user') {
+              userQuery = await User.findById(callerId);
+              hostQuery = await Host.findById(receiverId);
+              if (
+                hostQuery.recentConnectionId ||
+                userQuery.recentConnectionId
+              ) {
+                console.log(
+                  'Receiver User connected with someone else .............',
+                  userQuery.recentConnectionId,
+                  'host',
+                  hostQuery.recentConnectionId
+                );
+                io.sockets
+                  .in('globalRoom:' + callerId)
+                  .emit(
+                    'callRequest',
+                    null,
+                    'Receiver User connected with someone else'
+                  );
+                await privateCall?.deleteOne();
+                return;
+              }
+              if (userQuery.recentConnectionId) {
+                console.log(
+                  ' caller is connected with someone else ....................'
+                );
+                io.sockets
+                  .in('globalRoom:' + callerId)
+                  .emit('callRequest', null, 'Oops , something went wrong !!');
+                await privateCall?.deleteOne();
+                return;
+              }
+            } else if (videoCallType === 'host') {
+              userQuery = await User.findById(receiverId);
+              hostQuery = await Host.findById(callerId);
+              if (
+                userQuery.recentConnectionId ||
+                hostQuery.recentConnectionId
+              ) {
+                console.log(
+                  'Receiver User connected with someone else ..............',
+                  userQuery.recentConnectionId,
+                  'host',
+                  hostQuery.recentConnectionId
+                );
+
+                io.sockets
+                  .in('globalRoom:' + callerId)
+                  .emit(
+                    'callRequest',
+                    null,
+                    'Receiver User connected with someone else'
+                  );
+                await privateCall?.deleteOne();
+                return;
+              }
+              if (hostQuery.recentConnectionId) {
+                console.log(
+                  ' caller is connected with someone else ....................'
+                );
+                io.sockets
+                  .in('globalRoom:' + callerId)
+                  .emit('callRequest', null, 'Oops , something went wrong !!');
+                await privateCall?.deleteOne();
+                return;
+              }
+            }
+            const user = userQuery;
+            const host = hostQuery;
+
+            const outgoing = new History();
+            outgoing.userId = user._id; // call user id
+            outgoing.type = 3;
+            outgoing.hostId = host._id; // call receiver host id
+            outgoing.date = new Date().toLocaleString('en-US', {
+              timeZone: 'Asia/Kolkata',
+            });
+            outgoing.caller = videoCallType;
+            outgoing.isPrivate = true;
+
+            const HostVerify = await Host.findById(host._id);
+            const privateCallVerify = await PrivateCallUserHost.findOne({
+              _id: privateCall?._id,
+            });
+            if (privateCallVerify) {
+              if (HostVerify?.isOnline || !HostVerify?.isBusy) {
+                await outgoing.save();
+
+                user.isBusy = true;
+                user.recentConnectionId = outgoing._id.toString();
+                await user.save();
+
+                host.isBusy = true;
+                host.recentConnectionId = outgoing._id.toString();
+                await host.save();
+
+                const videoCall = {
+                  callId: outgoing._id,
+                  token: '',
+                  callerId,
+                  receiverId,
+                  receiverName:
+                    videoCallType === 'host' ? user.name : host.name,
+                  callerImage: req.query.image,
+                  callerName: req.query.name,
+                  live: host.isLive,
+                  type: videoCallType,
+                  coin: parseInt(req.query.charge),
+                  callType: callType,
+                  channel,
+                };
+                const room = 'globalRoom:' + receiverId;
+                console.log(
+                  '&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& ---- privateCall startd between user and hot',
+                  userQuery.recentConnectionId,
+                  hostQuery.recentConnectionId
+                );
+                console.log('call request ..................');
+                io.sockets.in(room).emit('callRequest', videoCall, null);
+                await privateCallVerify.deleteOne();
+              } else {
+                io.sockets
+                  .in('globalRoom:' + callerId)
+                  .emit(
+                    'callRequest',
+                    null,
+                    !HostVerify?.isOnline
+                      ? 'Host is Not Online'
+                      : 'Host is Busy With Someone else'
+                  );
+
+                return;
+              }
+            }
+          }
+        }
+      }
+    }, 200);
   } catch (error) {
     console.log(error);
     return res.status(500).json({
