@@ -554,7 +554,9 @@ exports.getProfile = async (req, res) => {
         .status(200)
         .send({ status: false, message: 'Host is Blocked by Admin' });
     }
-    const settlementCoin = await HostSettlementHistory.findOne({}).sort({
+    const settlementCoin = await HostSettlementHistory.findOne({
+      hostId: host?._id,
+    }).sort({
       createdAt: -1,
     });
     return res.status(200).send({
@@ -1743,5 +1745,82 @@ exports.getFakeHostForStory = async (req, res) => {
     return res
       .status(500)
       .send({ status: false, message: error || 'Internal server error' });
+  }
+};
+
+// add or cut coin by admin
+exports.getParticularLiveHost = async (req, res) => {
+  try {
+    if (!req?.query?.hostId) {
+      return res
+        .status(200)
+        .send({ status: false, message: 'Invalid details' });
+    }
+    const host = await Host.findById(req?.query?.hostId).populate('countryId');
+    if (!host) {
+      return res
+        .status(200)
+        .send({ status: false, message: 'Host Does Not Found !!' });
+    }
+
+    const hostData = await LiveUser.aggregate([
+      {
+        $match: {
+          liveHostId: new mongoose.Types.ObjectId(req?.query?.hostId),
+        },
+      },
+      {
+        $lookup: {
+          from: 'hosts',
+          localField: 'liveHostId',
+          foreignField: '_id',
+          as: 'host',
+        },
+      },
+      {
+        $unwind: {
+          path: '$host',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          isLive: true,
+          flag: '$countryFlag',
+        },
+      },
+      {
+        $project: {
+          mainId: '$_id',
+          _id: '$host._id',
+          uniqueId: '$host.uniqueId',
+          profilePic: '$host.profilePic',
+          image: '$host.image',
+          coin: '$host.coin',
+          isLive: 1,
+          channel: '$host.channel',
+          isBusy: '$host.isBusy',
+          isOnline: '$host.isOnline',
+          age: '$host.age',
+          identity: '$host.identity',
+          gender: '$host.gender',
+          name: '$host.name',
+          bio: '$host.bio',
+          counntry: '$country',
+          flag: 1,
+          receiveGift: '$host.receiveGift',
+          receiveCoin: '$host.receiveCoin',
+        },
+      },
+    ]);
+
+    return res.status(200).send({
+      status: true,
+      message: 'success!!',
+      hostData,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({ status: false, message: 'Internal server error' });
   }
 };

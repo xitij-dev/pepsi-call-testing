@@ -73,4 +73,11 @@ route.get(
   checkAccessWithSecretKey(),
   hostController.getRandomLiveHost
 );
+
+// get random live host
+route.get(
+  '/getParticularLiveHost',
+  checkAccessWithSecretKey(),
+  hostController.getParticularLiveHost
+);
 module.exports = route;

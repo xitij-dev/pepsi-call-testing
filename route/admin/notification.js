@@ -16,14 +16,6 @@ route.post(
   notificationCntroller.sendNotification
 );
 
-// send notification particular user
-route.post(
-  '/:userId',
-  checkAccess(),
-  upload.single('image'),
-  notificationCntroller.particularUserNotification
-);
-
 // send notification particular agency
 route.post(
   '/agency/:agencyId',
@@ -32,4 +24,19 @@ route.post(
   notificationCntroller.particularAgencyNotification
 );
 
+// send notification particular agency
+route.post(
+  '/SendNotificationToAgencyHost',
+  checkAccess(),
+  upload.single('image'),
+  notificationCntroller.SendNotificationToAgencyHost
+);
+
+// send notification particular user
+route.post(
+  '/:userId',
+  checkAccess(),
+  upload.single('image'),
+  notificationCntroller.particularUserNotification
+);
 module.exports = route;

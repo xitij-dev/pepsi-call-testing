@@ -36,13 +36,13 @@ const HostSettlementHistory = require('../../model/hostSettlementHistory');
 exports.makeCall = async (req, res) => {
   try {
     if (
-      !req.body ||
-      !req.body.callerId ||
-      !req.body.receiverId ||
-      !req.body.videoCallType ||
-      !req.body.callType ||
-      !req.body.charge ||
-      !req.body.type
+      !req.query ||
+      !req.query.callerId ||
+      !req.query.receiverId ||
+      !req.query.videoCallType ||
+      !req.query.callType ||
+      !req.query.charge ||
+      !req.query.type
     ) {
       return res
         .status(200)
@@ -60,12 +60,12 @@ exports.makeCall = async (req, res) => {
     let userQuery;
     let hostQuery;
 
-    if (req.body.videoCallType === 'user') {
-      userQuery = await User.findById(req.body.callerId);
-      hostQuery = await Host.findById(req.body.receiverId);
-    } else if (req.body.videoCallType === 'host') {
-      userQuery = await User.findById(req.body.receiverId);
-      hostQuery = await Host.findById(req.body.callerId);
+    if (req.query.videoCallType === 'user') {
+      userQuery = await User.findById(req.query.callerId);
+      hostQuery = await Host.findById(req.query.receiverId);
+    } else if (req.query.videoCallType === 'host') {
+      userQuery = await User.findById(req.query.receiverId);
+      hostQuery = await Host.findById(req.query.callerId);
     }
 
     const user = userQuery;
@@ -82,7 +82,7 @@ exports.makeCall = async (req, res) => {
         .json({ status: false, message: 'host does not exists !' });
     }
 
-    if (req.body.videoCallType === 'user') {
+    if (req.query.videoCallType === 'user') {
       if (host.isBlock) {
         return res.status(200).json({
           status: false,
@@ -116,7 +116,7 @@ exports.makeCall = async (req, res) => {
       }
     }
 
-    if (req.body.videoCallType === 'host') {
+    if (req.query.videoCallType === 'host') {
       if (user.isBlock) {
         return res.status(200).json({
           status: false,
@@ -153,14 +153,14 @@ exports.makeCall = async (req, res) => {
 
     const job = queue
       .create('Pepsi-Call-User-Host-Call', {
-        callerId: req.body.callerId,
-        receiverId: req.body.receiverId,
-        videoCallType: req.body.videoCallType,
-        callType: req.body.callType,
-        callerImage: req.body.image,
-        callerName: req.body.name,
-        charge: parseInt(req.body.charge),
-        type: req.body.type,
+        callerId: req.query.callerId,
+        receiverId: req.query.receiverId,
+        videoCallType: req.query.videoCallType,
+        callType: req.query.callType,
+        callerImage: req.query.image,
+        callerName: req.query.name,
+        charge: parseInt(req.query.charge),
+        type: req.query.type,
         token: '',
         channel,
       })
@@ -186,7 +186,7 @@ exports.makeCall = async (req, res) => {
 // Make Call API
 exports.makeCallForFakeHost = async (req, res) => {
   try {
-    if (!req.body || !req.body.callerId) {
+    if (!req.query || !req.query.callerId) {
       return res
         .status(200)
         .json({ status: false, message: 'Invalid Details !' });
@@ -200,7 +200,7 @@ exports.makeCallForFakeHost = async (req, res) => {
       );
     }
 
-    const user = await User.findById(req?.body?.callerId);
+    const user = await User.findById(req?.query?.callerId);
     if (!user) {
       return res.status(200).json({
         status: false,
@@ -225,7 +225,7 @@ exports.makeCallForFakeHost = async (req, res) => {
     if (host.length > 0) {
       const job = queue
         .create('Pepsi-Call-User-Host-Call', {
-          callerId: req.body.callerId,
+          callerId: req.query.callerId,
           receiverId: host[0]._id,
           videoCallType: 'user',
           callType: 'private',
@@ -410,7 +410,6 @@ exports.userHostCall = async (
           .in('globalRoom:' + callerId)
           .emit('callRequest', null, 'Receiver User Not Connected');
       }
- 
     } else {
       done();
     }
@@ -1291,7 +1290,7 @@ exports.hisotryForHost = async (req, res) => {
         $project: {
           callStartTime: 1,
           callEndTime: 1,
-
+          videoCallType: 1,
           callConnect: 1,
           callEndReason: 1,
           hCoin: 1,
@@ -2544,7 +2543,13 @@ exports.agencyHistoryOfHostWise = async (req, res) => {
           hostId: 1,
           coin: '$hCoin',
           type: 1,
-          giftCoin: { $cond: [{ $eq: ['$type', 0] }, '$hCoin', 0] },
+          giftCoin: {
+            $cond: [
+              { $or: [{ $eq: ['$type', 8] }, { $eq: ['$type', 9] }] },
+              '$hCoin',
+              0,
+            ],
+          },
           callCoin: { $cond: [{ $eq: ['$type', 3] }, '$hCoin', 0] },
           adminCoin: { $cond: [{ $eq: ['$type', 5] }, '$hCoin', 0] },
           date: '$analyticDate',

@@ -171,7 +171,7 @@ exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
       const outgoing = new History();
       outgoing.userId = user._id; // call user id
       outgoing.type = 3;
-
+      outgoing.videoCallType = type;
       outgoing.hostId = host._id; // call receiver host id
       outgoing.date = new Date().toLocaleString('en-US', {
         timeZone: 'Asia/Kolkata',
@@ -245,7 +245,6 @@ exports.randomMatchHost = async (userId, type, count, uniqueId, id, done) => {
         io.sockets
           .in('globalRoom:' + host._id.toString())
           .emit('callRequest', data, null);
-    
       } else {
         user.isBusy = false;
         user.recentConnectionId = null;
@@ -366,6 +365,7 @@ exports.makeCallHistory = async (userId, type, count, uniqueId, id, done) => {
       const outgoing = new History();
       outgoing.userId = user._id; // call user id
       outgoing.type = 3;
+      outgoing.videoCallType = type;
       outgoing.otherUserId = user2._id; // call receiver otherUser id
       outgoing.date = new Date().toLocaleString('en-US', {
         timeZone: 'Asia/Kolkata',

@@ -40,8 +40,8 @@ app.get('/*', function (req, res) {
 
 global.queue = kue.createQueue({
   redis: {
-    prefix: 'PEPSI-Call',
-    db: 12,
+    prefix: 'PEPSI-Call-Testing',
+    db: 14,
   },
 });
 
@@ -94,7 +94,6 @@ queue.process('Pepsi-new-userUserCall', async function (job, done) {
     console.log(error);
   }
 });
-
 
 queue.process('Pepsi-call-random', async function (job, done) {
   try {

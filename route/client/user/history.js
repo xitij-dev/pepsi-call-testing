@@ -4,10 +4,10 @@ const route = express.Router();
 const HistoryController = require('../../../controller/client/history');
 const checkAccessWithSecretKey = require('../../../middleware/checkAccess');
 
-route.post('/makeCall', checkAccessWithSecretKey(), HistoryController.makeCall);
+route.get('/makeCall', checkAccessWithSecretKey(), HistoryController.makeCall);
 
 // make video call for fake host
-route.post(
+route.get(
   '/makeCallForFakeHost',
   checkAccessWithSecretKey(),
   HistoryController.makeCallForFakeHost

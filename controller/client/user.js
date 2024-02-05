@@ -172,10 +172,17 @@ exports.store = async (req, res) => {
 
       await users.save();
       // const user_ = await userFunction_(users, req);
+      const vipPlan = await VipPlanHistory.findOne({
+        userId: users._id,
+        isActive: true,
+      }).sort({
+        createdAt: -1,
+      });
+
       return res.status(200).send({
         status: true,
         message: 'login successfully !!',
-        user: users,
+        user: { ...users?._doc, isVip: vipPlan ? true : false },
       });
     }
     const newUser = new User();
@@ -297,8 +304,18 @@ exports.updateUser = async (req, res) => {
     // }
 
     await user.save();
+    const vipPlan = await VipPlanHistory.findOne({
+      userId: user._id,
+      isActive: true,
+    }).sort({
+      createdAt: -1,
+    });
 
-    return res.status(200).send({ status: true, message: ' success', user });
+    return res.status(200).send({
+      status: true,
+      message: ' success',
+      user: { ...user?._doc, isVip: vipPlan ? true : false },
+    });
   } catch (error) {
     console.log(error);
     return res
@@ -551,11 +568,18 @@ exports.purchagePlan = async (req, res) => {
     userHistory.type = historyType;
     await userHistory.save();
 
+    const vipPlanExist = await VipPlanHistory.findOne({
+      userId: user._id,
+      isActive: true,
+    }).sort({
+      createdAt: -1,
+    });
+
     return res.status(200).send({
       status: true,
       message: 'success!!',
       planCoin,
-      user: { ...user.toObject(), isVip: true },
+      user: { ...user.toObject(), isVip: vipPlanExist ? true : false },
     });
   } catch (error) {
     console.log(error);

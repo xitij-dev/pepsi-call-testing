@@ -29,6 +29,7 @@ const historySchema = new mongoose.Schema(
       default: null,
     },
     type: { type: Number, enum: HISTORY_TYPE }, // 1: message ,2 : coinPlan , 3 : call , 4: loginBonus , 5: admin ,6: referralBonus ,7 : flashCoin , 8 :liveGift ,9: callGift , 10 : vipPlan , 11: flashVipPlan
+    videoCallType: { type: String, default: 'female' }, // male , female, both
     uCoin: { type: Number, default: 0 }, // user coin
     hCoin: { type: Number, default: 0 }, // host coin
     callEndReason: { type: String, default: null },

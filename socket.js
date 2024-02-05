@@ -1576,23 +1576,11 @@ io.on('connect', async (socket) => {
             timeZone: 'Asia/Kolkata',
           });
           liveStreamingHistory.duration =
-            liveStreamingHistory.duration > 0
-              ? liveStreamingHistory.midTime
-                ? liveStreamingHistory.duration +
-                  moment.utc(
-                    moment(new Date(liveStreamingHistory.endTime)).diff(
-                      moment(new Date(liveStreamingHistory.midTime))
-                    )
-                  ) /
-                    1000
-                : liveStreamingHistory.duration
-              : liveStreamingHistory.startTime
-              ? moment.utc(
-                  moment(new Date(liveStreamingHistory.endTime)).diff(
-                    moment(new Date(liveStreamingHistory.startTime))
-                  )
-                ) / 1000
-              : 0;
+            moment.utc(
+              moment(new Date(liveStreamingHistory.endTime)).diff(
+                moment(new Date(liveStreamingHistory.startTime))
+              )
+            ) / 1000;
           await liveStreamingHistory.save();
         }
         await LiveView.deleteMany({
@@ -1951,13 +1939,11 @@ io.on('connect', async (socket) => {
                       }
                     );
                     liveStreamingHistory.duration =
-                      liveStreamingHistory.duration > 0
-                        ? moment.utc(
-                            moment(new Date(liveStreamingHistory.endTime)).diff(
-                              moment(new Date(liveStreamingHistory.startTime))
-                            )
-                          ) / 1000
-                        : 0;
+                      moment.utc(
+                        moment(new Date(liveStreamingHistory.endTime)).diff(
+                          moment(new Date(liveStreamingHistory.startTime))
+                        )
+                      ) / 1000;
                     await liveStreamingHistory.save();
                   }
                 }

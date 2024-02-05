@@ -371,7 +371,7 @@ exports.sendNotification = async (req, res) => {
               title: req.body.title,
               image: req.file ? process?.env?.BASE_URL + req.file.path : '',
             },
-            // type: 'ADMIN',
+            type: 'ADMIN',
           },
         };
 
@@ -401,6 +401,90 @@ exports.sendNotification = async (req, res) => {
           }
         });
       }
+      return res.status(200).json({
+        status: 200,
+        message: 'Successfully sent message',
+        // data: true,
+      });
+    }
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ status: false, error: error.message || 'server error' });
+  }
+};
+
+// send notification for admin penal
+exports.SendNotificationToAgencyHost = async (req, res) => {
+  try {
+    if (!req?.body?.agencyId) {
+      return res
+        .status(200)
+        .send({ status: false, message: 'Invalid details' });
+    }
+    const agency = await Agency.findById(req?.body?.agencyId);
+    if (!agency) {
+      return res
+        .status(200)
+        .send({ status: false, message: 'Agency Does Not Found !!' });
+    }
+    const batchSize = 1000; // maximum number of tokens per batch
+    const host = await Host.find(
+      {
+        agencyId: req?.body?.agencyId,
+        isBlock: false,
+        type: 1,
+        fcm_token: { $ne: null },
+      },
+      { fcm_token: 1 }
+    );
+    for (let i = 0; i < host.length; i += batchSize) {
+      const batchHosts = host.slice(i, i + batchSize);
+      const registrationTokens = batchHosts.map((hosts) => hosts.fcm_token);
+
+      const payload = {
+        registration_ids: registrationTokens,
+        notification: {
+          body: req.body?.description,
+          title: req.body?.title,
+          image: req.file ? process?.env?.BASE_URL + req.file.path : '',
+        },
+        data: {
+          data: {
+            body: req.body?.description,
+            title: req.body?.title,
+            image: req.file ? process?.env?.BASE_URL + req.file.path : '',
+          },
+          type: 'AGENCY',
+        },
+      };
+
+      await fcm.send(payload, async function (err, response) {
+        if (response) {
+          console.log('Successfully sent with response: ', response);
+          for (let index = 0; index < batchHosts.length; index += 1) {
+            const element = batchHosts[index]._id;
+            const notification = new Notification();
+
+            notification.title = req.body?.title;
+            notification.hostId = element;
+            notification.image = req.file
+              ? process?.env?.BASE_URL + req.file.path
+              : '';
+            notification.message = req.body?.description;
+            notification.notificationType = 0;
+            notification.date = new Date().toLocaleString('en-US', {
+              timeZone: 'Asia/Kolkata',
+            });
+
+            await notification.save();
+          }
+        } else {
+          console.log('Something has gone wrong!');
+          console.log('error in user notification!', err);
+        }
+      });
       return res.status(200).json({
         status: 200,
         message: 'Successfully sent message',

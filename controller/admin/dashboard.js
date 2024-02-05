@@ -622,11 +622,23 @@ exports.getAgencyRevenueForAgencyPenal = async (req, res) => {
     const startOfWeek = moment().startOf('week').format();
     const endDayOfWeek = moment().endOf('week').format();
 
+    if (req?.query?.startDate !== 'ALL' && req?.query?.endDate !== 'ALL') {
+      const startDate = new Date(req?.query?.startDate);
+      const endDate = new Date(req?.query?.endDate);
+      endDate.setHours(23, 59, 59, 999);
+      dateFilterQuery = {
+        analytic: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      };
+    }
+
     const todayHistory = await History.aggregate([
       {
         $match: {
           hostId: { $in: host },
-          type: { $in: [0, 3, 5] },
+          type: { $in: [3, 5, 8, 9] },
           hCoin: { $ne: 0 },
         },
       },
@@ -651,28 +663,21 @@ exports.getAgencyRevenueForAgencyPenal = async (req, res) => {
     ]);
 
     const todayHistoryDollar = todayHistory[0]?.coin / setting.coinPerDollar;
-    const weekHistory = await History.aggregate([
+    const hostHistory = await History.aggregate([
       {
         $match: {
           hostId: { $in: host },
-          type: { $in: [0, 3, 5] },
+          type: { $in: [3, 5, 8, 9] },
           hCoin: { $ne: 0 },
         },
       },
       {
         $addFields: {
-          analytic: {
-            $toDate: { $arrayElemAt: [{ $split: ['$date', ','] }, 0] },
-          },
+          analytic: { $toDate: '$createdAt' },
         },
       },
       {
-        $match: {
-          analytic: {
-            $gte: new Date(startOfWeek),
-            $lte: new Date(endDayOfWeek),
-          },
-        },
+        $match: dateFilterQuery,
       },
       {
         $group: {
@@ -681,7 +686,7 @@ exports.getAgencyRevenueForAgencyPenal = async (req, res) => {
         },
       },
     ]);
-    const weekHistoryDollar = weekHistory[0]?.coin / setting.coinPerDollar;
+    const hostHistoryDollar = hostHistory[0]?.coin / setting.coinPerDollar;
     const lastRevenue = await AgencySettlementHistory.findOne(
       {
         agencyId: agency._id,
@@ -700,18 +705,6 @@ exports.getAgencyRevenueForAgencyPenal = async (req, res) => {
       ? lastRevenue.availableCoinAfterPaid / setting.coinPerDollar
       : 0;
     let dateFilterQuery = {};
-
-    if (req?.query?.startDate !== 'ALL' && req?.query?.endDate !== 'ALL') {
-      const startDate = new Date(req?.query?.startDate);
-      const endDate = new Date(req?.query?.endDate);
-      endDate.setHours(23, 59, 59, 999);
-      dateFilterQuery = {
-        analytic: {
-          $gte: startDate,
-          $lte: endDate,
-        },
-      };
-    }
 
     const totalRealHost = await Host.aggregate([
       {
@@ -776,9 +769,9 @@ exports.getAgencyRevenueForAgencyPenal = async (req, res) => {
         todayRevenue: todayHistory[0]?.coin > 0 ? todayHistory[0]?.coin : 0,
         todayRevenueDollar:
           todayHistoryDollar > 0 ? Number(todayHistoryDollar.toFixed(1)) : 0,
-        weekRevenue: weekHistory[0]?.coin > 0 ? weekHistory[0]?.coin : 0,
-        weekRevenueDollar:
-          weekHistoryDollar > 0 ? Number(weekHistoryDollar.toFixed(1)) : 0,
+        hostRevenue: hostHistory[0]?.coin > 0 ? hostHistory[0]?.coin : 0,
+        hostRevenueDollar:
+          hostHistoryDollar > 0 ? Number(hostHistoryDollar.toFixed(1)) : 0,
         lastRevenueCoin: lastRevenue,
         agencyBalInDollar: Number(agencyBalInDollar.toFixed(2)),
       },

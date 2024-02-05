@@ -578,10 +578,19 @@ exports.payGooglePlay = async (req, res) => {
     }
 
     await userHistory.save();
+    const vipPlan = await VipPlanHistory.findOne({
+      userId: user._id,
+      isActive: true,
+    }).sort({
+      createdAt: -1,
+    });
 
-    return res
-      .status(200)
-      .json({ status: true, message: 'success', planCoin, user });
+    return res.status(200).json({
+      status: true,
+      message: 'success',
+      planCoin,
+      user: { ...user?._doc, isVip: vipPlan ? true : false },
+    });
     // }
     // return res
     //   .status(200)
