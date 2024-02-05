@@ -22,7 +22,6 @@ const LiveStreamingHistory = require('../../model/liveStreamingHistory');
 const Agency = require('../../model/agency');
 const Redeem = require('../../model/redeem');
 const PrivateCallUserHost = require('../../model/privateCallUserHost');
-
 // FCM node
 // const {
 //   writeLogMessage,
@@ -34,6 +33,7 @@ const HostSettlementHistory = require('../../model/hostSettlementHistory');
 // const logFile = createCustomLogFile();
 // var fcm = new FCM(process?.env?.SERVER_KEY);
 
+// Make Call API
 // Make Call API
 exports.makeCall = async (req, res) => {
   try {
@@ -107,6 +107,8 @@ exports.makeCall = async (req, res) => {
           message: "Oops Something want's wrong! user",
         });
       }
+      user.isBusy = true;
+      await user.save();
     }
 
     if (videoCallType === 'host') {
@@ -134,11 +136,14 @@ exports.makeCall = async (req, res) => {
           message: "Oops Something want's wrong! host",
         });
       }
+      host.isBusy = true;
+      await host.save();
     }
     const privateCall = await new PrivateCallUserHost({
       userId: user._id,
       hostId: host._id,
       isUser: videoCallType == 'user' ? true : false,
+      expirationDate: new Date(createdAt.getTime() + 5 * 1000), // 45000),
     }).save();
 
     res.status(200).json({
@@ -163,77 +168,42 @@ exports.makeCall = async (req, res) => {
       if (privateCallerExist.length > 0) {
         if (videoCallType === 'user') {
           if (privateCallerExist?.[0].userId.toString() == callerId) {
-            let userQuery, hostQuery;
-            if (videoCallType === 'user') {
-              userQuery = await User.findById(callerId);
-              hostQuery = await Host.findById(receiverId);
-              if (
-                hostQuery.recentConnectionId ||
-                userQuery.recentConnectionId
-              ) {
-                console.log(
-                  'Receiver User connected with someone else .............',
-                  userQuery.recentConnectionId,
-                  'host',
-                  hostQuery.recentConnectionId
-                );
-                io.sockets
-                  .in('globalRoom:' + callerId)
-                  .emit(
-                    'callRequest',
-                    null,
-                    'Receiver User connected with someone else'
-                  );
-                await privateCall?.deleteOne();
-                return;
-              }
-              if (userQuery.recentConnectionId) {
-                console.log(
-                  ' caller is connected with someone else ....................'
-                );
-                io.sockets
-                  .in('globalRoom:' + callerId)
-                  .emit('callRequest', null, 'Oops , something went wrong !!');
-                await privateCall?.deleteOne();
-                return;
-              }
-            } else if (videoCallType === 'host') {
-              userQuery = await User.findById(receiverId);
-              hostQuery = await Host.findById(callerId);
-              if (
-                userQuery.recentConnectionId ||
-                hostQuery.recentConnectionId
-              ) {
-                console.log(
-                  'Receiver User connected with someone else ..............',
-                  userQuery.recentConnectionId,
-                  'host',
-                  hostQuery.recentConnectionId
-                );
-
-                io.sockets
-                  .in('globalRoom:' + callerId)
-                  .emit(
-                    'callRequest',
-                    null,
-                    'Receiver User connected with someone else'
-                  );
-                await privateCall?.deleteOne();
-                return;
-              }
-              if (hostQuery.recentConnectionId) {
-                console.log(
-                  ' caller is connected with someone else ....................'
-                );
-                io.sockets
-                  .in('globalRoom:' + callerId)
-                  .emit('callRequest', null, 'Oops , something went wrong !!');
-                await privateCall?.deleteOne();
-                return;
-              }
+            const user = await User.findById(callerId);
+            const host = await Host.findById(receiverId);
+            if (user.recentConnectionId) {
+              console.log(
+                ' caller is connected with someone else ....................'
+              );
+              io.sockets
+                .in('globalRoom:' + callerId)
+                .emit('callRequest', null, 'Oops , something went wrong !!');
+              await privateCall?.deleteOne();
+              return;
             }
-            const user = userQuery;
-            const host = hostQuery;
+
+            if (
+              host?.isBusy ||
+              host.recentConnectionId ||
+              user.recentConnectionId
+            ) {
+              console.log(
+                'Receiver User connected with someone else .............',
+                user.recentConnectionId,
+                'host',
+                host.recentConnectionId
+              );
+              io.sockets
+                .in('globalRoom:' + callerId)
+                .emit(
+                  'callRequest',
+                  null,
+                  'Receiver User connected with someone else'
+                );
+              user.isBusy = false;
+              await user.save();
+              await privateCall?.deleteOne();
+              return;
+            }
 
             const outgoing = new History();
             outgoing.userId = user._id; // call user id
@@ -246,13 +216,12 @@ exports.makeCall = async (req, res) => {
             outgoing.isPrivate = true;
 
             const HostVerify = await Host.findById(host._id);
-            const privateCallVerify = await PrivateCallUserHost.findOne({
-              _id: privateCall?._id,
-            });
+            const privateCallVerify = await PrivateCallUserHost.findById(
+              privateCall?._id
+            );
             if (privateCallVerify) {
               if (HostVerify?.isOnline || !HostVerify?.isBusy) {
                 await outgoing.save();
-
                 user.isBusy = true;
                 user.recentConnectionId = outgoing._id.toString();
                 await user.save();
@@ -276,15 +245,16 @@ exports.makeCall = async (req, res) => {
                   callType: callType,
                   channel,
                 };
-                const room = 'globalRoom:' + receiverId;
+                io.sockets
+                  .in('globalRoom:' + receiverId)
+                  .emit('callRequest', videoCall, null);
+                await privateCallVerify.deleteOne();
                 console.log(
                   '&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& ---- privateCall startd between user and hot',
                   userQuery.recentConnectionId,
                   hostQuery.recentConnectionId
                 );
                 console.log('call request ..................');
-                io.sockets.in(room).emit('callRequest', videoCall, null);
-                await privateCallVerify.deleteOne();
               } else {
                 io.sockets
                   .in('globalRoom:' + callerId)
@@ -295,10 +265,148 @@ exports.makeCall = async (req, res) => {
                       ? 'Host is Not Online'
                       : 'Host is Busy With Someone else'
                   );
+                user.isBusy = false;
+                await user.save();
+                await privateCallVerify.deleteOne();
 
                 return;
               }
             }
+          } else {
+            io.sockets
+              .in('globalRoom:' + callerId)
+              .emit(
+                'callRequest',
+                null,
+                !host?.isOnline
+                  ? 'Host is Not Online'
+                  : 'Host is Busy With Someone else'
+              );
+            if (!user.recentConnectionId) {
+              user.isBusy = false;
+              await user.save();
+            }
+          }
+        } else {
+          // caller == host
+          if (privateCallerExist?.[0].hostId.toString() == callerId) {
+            const user = await User.findById(receiverId);
+            const host = await Host.findById(callerId);
+
+            if (host.recentConnectionId) {
+              console.log(
+                ' caller is connected with someone else ....................'
+              );
+              io.sockets
+                .in('globalRoom:' + callerId)
+                .emit('callRequest', null, 'Oops , something went wrong !!');
+              await privateCall?.deleteOne();
+              return;
+            }
+
+            if (
+              user.isBusy ||
+              user.recentConnectionId ||
+              host.recentConnectionId
+            ) {
+              console.log(
+                'Receiver User connected with someone else ..............',
+                user.recentConnectionId,
+                user.isBusy,
+                'host',
+                host.recentConnectionId
+              );
+
+              io.sockets
+                .in('globalRoom:' + callerId)
+                .emit(
+                  'callRequest',
+                  null,
+                  'Receiver User connected with someone else'
+                );
+              host.isBusy = false;
+              await host.save();
+              await privateCall?.deleteOne();
+              return;
+            }
+
+            const outgoing = new History();
+            outgoing.userId = user._id; // call user id
+            outgoing.type = 3;
+            outgoing.hostId = host._id; // call receiver host id
+            outgoing.date = new Date().toLocaleString('en-US', {
+              timeZone: 'Asia/Kolkata',
+            });
+            outgoing.caller = videoCallType;
+            outgoing.isPrivate = true;
+
+            const UserVerify = await User.findById(user._id);
+            const privateCallVerify = await PrivateCallUserHost.findById(
+              privateCall?._id
+            );
+            if (privateCallVerify) {
+              if (UserVerify?.isOnline || !UserVerify?.isBusy) {
+                await outgoing.save();
+                user.isBusy = true;
+                user.recentConnectionId = outgoing._id.toString();
+                await user.save();
+
+                host.isBusy = true;
+                host.recentConnectionId = outgoing._id.toString();
+                await host.save();
+
+                const videoCall = {
+                  callId: outgoing._id,
+                  token: '',
+                  callerId,
+                  receiverId,
+                  receiverName:
+                    videoCallType === 'host' ? user.name : host.name,
+                  callerImage: req.query.image,
+                  callerName: req.query.name,
+                  live: host.isLive,
+                  type: videoCallType,
+                  coin: parseInt(req.query.charge),
+                  callType: callType,
+                  channel,
+                };
+                io.sockets
+                  .in('globalRoom:' + receiverId)
+                  .emit('callRequest', videoCall, null);
+                await privateCallVerify.deleteOne();
+                console.log(
+                  '&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& ---- privateCall startd between user and host',
+                  userQuery.recentConnectionId,
+                  hostQuery.recentConnectionId
+                );
+                console.log('call request ..................');
+              } else {
+                io.sockets
+                  .in('globalRoom:' + callerId)
+                  .emit(
+                    'callRequest',
+                    null,
+                    !UserVerify?.isOnline
+                      ? 'User is Not Online'
+                      : 'User is Busy With Someone else'
+                  );
+                host.isBusy = false;
+                await host.save();
+                await privateCallVerify.deleteOne();
+
+                return;
+              }
+            }
+          } else {
+            io.sockets
+              .in('globalRoom:' + callerId)
+              .emit(
+                'callRequest',
+                null,
+                !HostVerify?.isOnline
+                  ? 'Host is Not Online'
+                  : 'Host is Busy With Someone else'
+              );
           }
         }
       }
@@ -311,7 +419,6 @@ exports.makeCall = async (req, res) => {
     });
   }
 };
-
 // make call api for fake host
 // Make Call API
 exports.makeCallForFakeHost = async (req, res) => {
@@ -1609,7 +1716,7 @@ exports.userCoinHistory = async (req, res) => {
     const history = await History.aggregate([
       {
         $match: {
-          userId: user._id,
+          $or: [{ userId: user._id }, { otherUserId: user._id }],
           uCoin: { $ne: 0 },
         },
       },
@@ -2254,41 +2361,11 @@ exports.userCallHistory = async (req, res) => {
             {
               $project: {
                 _id: 1,
-                // callEndReason: 1,
                 host: 1,
-                // coin: '$uCoin',
-                // count: 1,
-                // callConnect: 1,
-                // callStartTime: 1,
-                // callEndTime: 1,
                 duration: 1,
                 callType: {
                   $cond: [{ $eq: ['$caller', 'user'] }, 'Outgoing', 'Incoming'],
                 },
-                // type: {
-                //   $switch: {
-                //     branches: [
-                //       {
-                //         case: {
-                //           $and: [
-                //             { $eq: ['$isRandom', true] },
-                //             { $eq: ['$isPrivate', true] },
-                //           ],
-                //         },
-                //         then: 'Random + Private Call',
-                //       },
-                //       {
-                //         case: { $eq: ['$isRandom', true] },
-                //         then: 'Random Call',
-                //       },
-                //       {
-                //         case: { $eq: ['$isPrivate', true] },
-                //         then: 'Private Call',
-                //       },
-                //     ],
-                //     default: 'Missed Call',
-                //   },
-                // },
                 date: 1,
                 createdAt: 1,
               },
@@ -2371,19 +2448,18 @@ exports.userCallHistory = async (req, res) => {
               $project: {
                 _id: 1,
                 user: 1,
-                // callEndReason: 1,
                 host: {
                   $cond: [
-                    { $eq: ['$otherUserId._id', userId] },
+                    {
+                      $eq: [
+                        '$otherUserId._id',
+                        new mongoose.Types.ObjectId(userId),
+                      ],
+                    },
                     '$userId',
                     '$otherUserId',
                   ],
                 },
-                // coin: '$uCoin',
-                // count: 1,
-                // callConnect: 1,
-                // callStartTime: 1,
-                // callEndTime: 1,
                 duration: 1,
                 callType: {
                   $cond: [
@@ -2392,30 +2468,6 @@ exports.userCallHistory = async (req, res) => {
                     'Incoming',
                   ],
                 },
-                // type: {
-                //   $switch: {
-                //     branches: [
-                //       {
-                //         case: {
-                //           $and: [
-                //             { $eq: ['$isRandom', true] },
-                //             { $eq: ['$isPrivate', true] },
-                //           ],
-                //         },
-                //         then: 'Random + Private Call',
-                //       },
-                //       {
-                //         case: { $eq: ['$isRandom', true] },
-                //         then: 'Random Call',
-                //       },
-                //       {
-                //         case: { $eq: ['$isPrivate', true] },
-                //         then: 'Private Call',
-                //       },
-                //     ],
-                //     default: 'Missed Call',
-                //   },
-                // },
                 date: 1,
                 createdAt: 1,
               },

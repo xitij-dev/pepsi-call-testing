@@ -257,11 +257,19 @@ io.on('connect', async (socket) => {
     });
 
     console.log('deleteUser == ', finalData.userId, deleteUser.deletedCount);
-    connectedHost = await User.findOne({
-      _id: { $ne: user._id },
-      recentConnectionId: user?.recentConnectionId,
-    });
     const history = await History.findById(user.recentConnectionId);
+
+    if (history?.hostId != null) {
+      connectedHost = await Host.findOne({
+        recentConnectionId: user?.recentConnectionId,
+      });
+    } else {
+      connectedHost = await User.findOne({
+        _id: { $ne: user._id },
+        recentConnectionId: user?.recentConnectionId,
+      });
+    }
+
     if (connectedHost) {
       if (history?.isPrivate) {
         connectedHost.isBusy = true;

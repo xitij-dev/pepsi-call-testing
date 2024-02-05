@@ -1763,61 +1763,17 @@ exports.getParticularLiveHost = async (req, res) => {
         .send({ status: false, message: 'Host Does Not Found !!' });
     }
 
-    const hostData = await LiveUser.aggregate([
-      {
-        $match: {
-          liveHostId: new mongoose.Types.ObjectId(req?.query?.hostId),
-        },
-      },
-      {
-        $lookup: {
-          from: 'hosts',
-          localField: 'liveHostId',
-          foreignField: '_id',
-          as: 'host',
-        },
-      },
-      {
-        $unwind: {
-          path: '$host',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          isLive: true,
-          flag: '$countryFlag',
-        },
-      },
-      {
-        $project: {
-          mainId: '$_id',
-          _id: '$host._id',
-          uniqueId: '$host.uniqueId',
-          profilePic: '$host.profilePic',
-          image: '$host.image',
-          coin: '$host.coin',
-          isLive: 1,
-          channel: '$host.channel',
-          isBusy: '$host.isBusy',
-          isOnline: '$host.isOnline',
-          age: '$host.age',
-          identity: '$host.identity',
-          gender: '$host.gender',
-          name: '$host.name',
-          bio: '$host.bio',
-          counntry: '$country',
-          flag: 1,
-          receiveGift: '$host.receiveGift',
-          receiveCoin: '$host.receiveCoin',
-        },
-      },
-    ]);
+    const liveUser = await LiveUser.exists({ liveHostId: host?._id });
 
     return res.status(200).send({
       status: true,
       message: 'success!!',
-      hostData,
+      hostData: {
+        ...host?._doc,
+        flag: host?._doc.countryId.flag,
+        counntry: host?._doc.countryId.name,
+        isLive: liveUser ? true : false,
+      },
     });
   } catch (error) {
     console.log(error);
