@@ -33,6 +33,7 @@ const Data = require('./model/data');
 const Setting = require('./model/setting');
 const queueProcess = require('./util/stopQueueProcess');
 const CallMatchUser = require('./model/callMatchUser');
+const PrivateCallUserHost = require('./model/privateCallUserHost');
 
 // function
 const { roundNumber } = require('./util/roundNumber');
@@ -785,6 +786,14 @@ io.on('connect', async (socket) => {
 
       if (hostData) {
         host = hostData;
+        try {
+          await PrivateCallUserHost.deleteOne({
+            hostId: data.receiverId,
+            isUser: false,
+          });
+        } catch (e) {
+          console.log('e : user : ', e);
+        }
       } else {
         host = userData;
       }
@@ -797,6 +806,14 @@ io.on('connect', async (socket) => {
       console.log('type =====Host  ');
       host = await Host.findById(data.callerId);
       user = await User.findById(data.receiverId);
+      try {
+        await PrivateCallUserHost.deleteOne({
+          userId: data.receiverId,
+          isUser: true,
+        });
+      } catch (e) {
+        console.log('e : user : ', e);
+      }
       if (host.recentConnectionId == data.callId) {
         receiverAvailable = true;
       } else {
@@ -1310,6 +1327,25 @@ io.on('connect', async (socket) => {
     const room = 'globalRoom:' + data?.recieverId;
     console.log('room', room);
     if (room) {
+      if (data?.type === 'user') {
+        try {
+          await PrivateCallUserHost.deleteOne({
+            userId: user?._id,
+            isUser: true,
+          });
+        } catch (e) {
+          console.log('e : user : ', e);
+        }
+      } else {
+        try {
+          await PrivateCallUserHost.deleteOne({
+            hostId: data?.callerId,
+            isUser: false,
+          });
+        } catch (e) {
+          console.log('e : host : ', e);
+        }
+      }
       if (data.callId) {
         console.log('CALL CANCEL callId EXIST  ====');
         const history = await History.findById(data?.callId);

@@ -139,6 +139,7 @@ exports.makeCall = async (req, res) => {
       host.isBusy = true;
       await host.save();
     }
+    const createdAt = new Date();
     const privateCall = await new PrivateCallUserHost({
       userId: user._id,
       hostId: host._id,
@@ -199,8 +200,10 @@ exports.makeCall = async (req, res) => {
                   null,
                   'Receiver User connected with someone else'
                 );
-              user.isBusy = false;
-              await user.save();
+              if (!user.recentConnectionId) {
+                user.isBusy = false;
+                await user.save();
+              }
               await privateCall?.deleteOne();
               return;
             }
@@ -216,10 +219,10 @@ exports.makeCall = async (req, res) => {
             outgoing.isPrivate = true;
 
             const HostVerify = await Host.findById(host._id);
-            const privateCallVerify = await PrivateCallUserHost.findById(
-              privateCall?._id
-            );
-            if (privateCallVerify) {
+            const privateCallVerify = await PrivateCallUserHost.deleteOne({
+              _id: privateCall?._id,
+            });
+            if (privateCallVerify?.deletedCount > 0) {
               if (HostVerify?.isOnline || !HostVerify?.isBusy) {
                 await outgoing.save();
                 user.isBusy = true;
@@ -248,7 +251,6 @@ exports.makeCall = async (req, res) => {
                 io.sockets
                   .in('globalRoom:' + receiverId)
                   .emit('callRequest', videoCall, null);
-                await privateCallVerify.deleteOne();
                 console.log(
                   '&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& ---- privateCall startd between user and hot',
                   userQuery.recentConnectionId,
@@ -265,8 +267,10 @@ exports.makeCall = async (req, res) => {
                       ? 'Host is Not Online'
                       : 'Host is Busy With Someone else'
                   );
-                user.isBusy = false;
-                await user.save();
+                if (!user.recentConnectionId) {
+                  user.isBusy = false;
+                  await user.save();
+                }
                 await privateCallVerify.deleteOne();
 
                 return;
@@ -324,8 +328,10 @@ exports.makeCall = async (req, res) => {
                   null,
                   'Receiver User connected with someone else'
                 );
-              host.isBusy = false;
-              await host.save();
+              if (!host.recentConnectionId) {
+                host.isBusy = false;
+                await host.save();
+              }
               await privateCall?.deleteOne();
               return;
             }
@@ -390,8 +396,10 @@ exports.makeCall = async (req, res) => {
                       ? 'User is Not Online'
                       : 'User is Busy With Someone else'
                   );
-                host.isBusy = false;
-                await host.save();
+                if (!host.recentConnectionId) {
+                  host.isBusy = false;
+                  await host.save();
+                }
                 await privateCallVerify.deleteOne();
 
                 return;
@@ -403,16 +411,21 @@ exports.makeCall = async (req, res) => {
               .emit(
                 'callRequest',
                 null,
-                !HostVerify?.isOnline
-                  ? 'Host is Not Online'
-                  : 'Host is Busy With Someone else'
+                !UserVerify?.isOnline
+                  ? 'User is Not Online'
+                  : 'User is Busy With Someone else'
               );
+            if (!host.recentConnectionId) {
+              host.isBusy = false;
+              await host.save();
+            }
+            await privateCallVerify.deleteOne();
           }
         }
       }
     }, 200);
   } catch (error) {
-    console.log(error);
+    console.log(error);0
     return res.status(500).json({
       status: false,
       error: error.message || 'Internal Server Error !',
