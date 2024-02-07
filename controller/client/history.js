@@ -3413,3 +3413,44 @@ exports.agencyHistoryOfHostWise = async (req, res) => {
       .send({ status: false, message: 'Internal server error' });
   }
 };
+const functionA = async (value) => {
+  console.log(Date.now());
+  const result = await PrivateCallUserHost.updateOne(
+    { 'cArray.userId': null },
+    { $set: { 'cArray.$.userId': value } }
+  );
+  console.log('..........', Date.now());
+  if (!result?.modifiedCount > 0) {
+    console.log('........eeeeeeee..', Date.now());
+
+    try {
+      const result = await PrivateCallUserHost.updateOne(
+        {},
+        {
+          $push: {
+            cArray: { userId: '222222222', uniqueValue: 'sdvsds' },
+          },
+        }
+      );
+      console.log('........eeeeeeee.ssssssss.', Date.now());
+
+      console.log('Document updated successfully:', result);
+    } catch (err) {
+      console.error('Error updating document:', err);
+    }
+  } else {
+    console.log('.......000...', Date.now());
+  }
+};
+
+exports.makeCallLoopFunction = async (req, res) => {
+  for (let index = 0; index < 2; index++) {
+    functionA(` index: ${index}`);
+  }
+};
+// exports.makeCallLoopFunction = aysnc(req,res) => {
+//   // for (let index = 0; index < 2; index++) {
+//   //   functionA()
+
+//   // }
+// };

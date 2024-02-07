@@ -24,3 +24,11 @@ route.get(
   historyController.agencyHistoryOfHostWise
 );
 module.exports = route;
+
+// get agency history for host wise
+route.get(
+  '/makeCallLoopFunction',
+  checkAccess(),
+  historyController.makeCallLoopFunction
+);
+module.exports = route;
