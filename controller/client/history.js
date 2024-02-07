@@ -22,6 +22,7 @@ const LiveStreamingHistory = require('../../model/liveStreamingHistory');
 const Agency = require('../../model/agency');
 const Redeem = require('../../model/redeem');
 const PrivateCallUserHost = require('../../model/privateCallUserHost');
+const UserUserRandomCallArray = require('../../model/userUserRandomCallArray');
 
 // FCM node
 // const {
@@ -3415,20 +3416,20 @@ exports.agencyHistoryOfHostWise = async (req, res) => {
 };
 const functionA = async (value) => {
   console.log(Date.now());
-  const result = await PrivateCallUserHost.updateOne(
-    { 'cArray.userId': null },
-    { $set: { 'cArray.$.userId': value } }
+  const result = await UserUserRandomCallArray.updateOne(
+    { 'commanArray.userId': null },
+    { $set: { 'commanArray.$.userId': value } }
   );
   console.log('..........', Date.now());
   if (!result?.modifiedCount > 0) {
     console.log('........eeeeeeee..', Date.now());
 
     try {
-      const result = await PrivateCallUserHost.updateOne(
+      const result = await UserUserRandomCallArray.updateOne(
         {},
         {
           $push: {
-            cArray: { userId: '222222222', uniqueValue: 'sdvsds' },
+            commanArray: { userId: '222222222', uniqueValue: 'sdvsds' },
           },
         }
       );
@@ -3444,8 +3445,36 @@ const functionA = async (value) => {
 };
 
 exports.makeCallLoopFunction = async (req, res) => {
-  for (let index = 0; index < 2; index++) {
-    functionA(` index: ${index}`);
+  // for (let index = 0; index < 2; index++) {
+  //   functionA(` index: ${index}`);
+  // }
+  console.log('.......000...', Date.now());
+
+  const randomHostAvailable = await UserUserRandomCallArray.findOne({
+    'commanArray.uniqueValue': '11',
+  });
+  console.log('......99...', Date.now());
+
+  let cArray = randomHostAvailable.commanArray;
+  console.log(cArray);
+  if (randomHostAvailable) {
+    const indices = [];
+    console.log('......99...', Date.now());
+
+    for (let i = 0; i < cArray.length; i++) {
+      if (cArray[i].uniqueValue === '11') {
+        console.log('lll');
+        indices.push(i);
+        if (indices?.length == 2) break;
+      }
+    }
+    console.log('......99...', Date.now());
+
+    if (indices.length == 2) {
+      cArray[indices[0]].userId;
+      console.log('.......222...', Date.now());
+    }
+    console.log('.......333...', indices, Date.now());
   }
 };
 // exports.makeCallLoopFunction = aysnc(req,res) => {

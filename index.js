@@ -193,7 +193,6 @@ queue.process('Pepsi-user-user-call-random', 10, async function (job, done) {
       job.data.count,
       job.data.uniqueId,
       job.data.uniqueValue, //caller uniqueValue
-      job.data.randomUserUserCall, 
       job.id,
       done
     );
