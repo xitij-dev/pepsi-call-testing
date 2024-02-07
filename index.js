@@ -40,8 +40,8 @@ app.get('/*', function (req, res) {
 
 global.queue = kue.createQueue({
   redis: {
-    prefix: 'PEPSI-Call-Testing',
-    db: 14,
+    prefix: 'PEPSI-Call',
+    db: 12,
   },
 });
 
@@ -60,122 +60,154 @@ require('./socket');
 
 app.use('/kue-api', kue.app);
 
-// pepsi -call -testing
-queue.process('Pepsi-new-userUserCall', async function (job, done) {
-  try {
-    console.log(
-      'data when random call in process ================== Pepsi-testing =====',
-      job.data,
-      job.id
-    );
-
-    kue.Job.rangeByType(
-      'Pepsi-new-userUserCall',
-      'active',
-      0,
-      -1,
-      'desc',
-      async function (err, jobs) {
-        if (err) {
-          console.log('Error:', err);
-          return;
-        }
-        await makeCallHistory(
-          job.data.userId,
-          job.data.type,
-          job.data.count,
-          job.data.uniqueId,
-          job.id,
-          done
-        );
-      }
-    );
-  } catch (error) {
-    console.log(error);
-  }
-});
-
-queue.process('Pepsi-call-random', async function (job, done) {
-  try {
-    console.log('data when random call in process ', job.data);
-
-    kue.Job.rangeByType(
-      'Pepsi-call-random',
-      'active',
-      0,
-      -1,
-      'desc',
-      async function (err, jobs) {
-        if (err) {
-          console.log('Error:', err);
-          return;
-        }
-
-        const active = jobs.length;
-        console.log('Total active jobs count:', active);
-
-        if (active == 1) {
-          setTimeout(async () => {
-            console.log('TstopQueueProcess: ', queueProcess.stopQueueProcess);
-            if (queueProcess.stopQueueProcess) {
-              done();
-              queueProcess.stopQueueProcess = false;
-              return;
-            }
-            await randomMatchHost(
-              job.data.userId,
-              job.data.type,
-              job.data.count,
-              job.data.uniqueId,
-              job.id,
-              done
-            );
-          }, 1500);
-        } else {
-          await randomMatchHost(
-            job.data.userId,
-            job.data.type,
-            job.data.count,
-            job.data.uniqueId,
-            job.id,
-            done
-          );
-        }
-      }
-    );
-  } catch (error) {
-    console.log(error);
-  }
-});
-
-// queue.process('Pepsi-user-user-call-random', 2, async function (job, done) {
+// queue.process('Pepsi-new-userUserCall', async function (job, done) {
 //   try {
-//     const user = await User.findById(job.data.userId);
-//     userToUserCallIds.push(user);
-//     console.log('data when random call in process ', job.data);
-//     console.log('data  job.data.count === QUE  ', job.data.count);
 //     console.log(
-//       'userToUserCallIds in index.js ========= QUE ',
-//       userToUserCallIds?.length
+//       'data when random call in process ================== Pepsi-testing =====',
+//       job.data,
+//       job.id
 //     );
 
-//     await randomMatchUser(
-//       job.data.userId,
-//       job.data.type,
-//       job.data.count,
-//       job.data.uniqueId,
-//       job.id,
-//       done
+//     kue.Job.rangeByType(
+//       'Pepsi-new-userUserCall',
+//       'active',
+//       0,
+//       -1,
+//       'desc',
+//       async function (err, jobs) {
+//         if (err) {
+//           console.log('Error:', err);
+//           return;
+//         }
+//         await makeCallHistory(
+//           job.data.userId,
+//           job.data.type,
+//           job.data.count,
+//           job.data.uniqueId,
+//           job.id,
+//           done
+//         );
+//       }
 //     );
 //   } catch (error) {
 //     console.log(error);
 //   }
 // });
 
-// eslint-disable-next-line no-undef
-queue.process('Pepsi-Call-User-Host-Call', async (job, done) => {
+// queue.process('Pepsi-call-random', async function (job, done) {
+//   try {
+//     console.log('data when random call in process ', job.data);
+
+//     kue.Job.rangeByType(
+//       'Pepsi-call-random',
+//       'active',
+//       0,
+//       -1,
+//       'desc',
+//       async function (err, jobs) {
+//         if (err) {
+//           console.log('Error:', err);
+//           return;
+//         }
+
+//         const active = jobs.length;
+//         console.log('Total active jobs count:', active);
+
+//         if (active == 1) {
+//           setTimeout(async () => {
+//             console.log('TstopQueueProcess: ', queueProcess.stopQueueProcess);
+//             if (queueProcess.stopQueueProcess) {
+//               done();
+//               queueProcess.stopQueueProcess = false;
+//               return;
+//             }
+//             await randomMatchHost(
+//               job.data.userId,
+//               job.data.type,
+//               job.data.count,
+//               job.data.uniqueId,
+//               job.id,
+//               done
+//             );
+//           }, 1500);
+//         } else {
+//           await randomMatchHost(
+//             job.data.userId,
+//             job.data.type,
+//             job.data.count,
+//             job.data.uniqueId,
+//             job.id,
+//             done
+//           );
+//         }
+//       }
+//     );
+//   } catch (error) {
+//     console.log(error);
+//   }
+// });
+
+queue.process('Pepsi-call-random', 10, async function (job, done) {
+  try {
+    console.log(
+      'data when random call in process ==============================',
+      job.data
+    );
+
+    await randomMatchHost(
+      job.data.userId,
+      job.data.type,
+      job.data.count,
+      job.data.uniqueId,
+      job.data.uniqueValue, //caller uniqueValue
+      job.id,
+      done
+    );
+
+    done();
+  } catch (error) {
+    done(error);
+    console.log(error);
+  }
+});
+
+queue.process('Pepsi-user-user-call-random', 10, async function (job, done) {
+  try {
+    console.log(
+      'data when random call in process ===========================',
+      job.data
+    );
+
+    // const user = await User.findById(job.data.userId);
+    // userToUserCallIds.push(user);
+
+    // console.log(
+    //   'userToUserCallIds length in Pepsi-user-user-call-random =====================',
+    //   userToUserCallIds?.length,
+    //   userToUserCallIds
+    // );
+
+    await randomMatchUser(
+      job.data.userId,
+      job.data.type,
+      job.data.count,
+      job.data.uniqueId,
+      job.data.uniqueValue, //caller uniqueValue
+      job.data.randomUserUserCall, 
+      job.id,
+      done
+    );
+
+    done();
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+queue.process('Pepsi-Call-User-Host-Call', 10, async (job, done) => {
   try {
     console.log('data when private call in process ', job.data);
+
     await userHostCall(
       job.data.callerId,
       job.data.receiverId,
@@ -187,19 +219,23 @@ queue.process('Pepsi-Call-User-Host-Call', async (job, done) => {
       job.data.callType,
       job.data.token,
       job.data.channel,
+      job.data.uniqueValue, //caller uniqueValue
       job.id,
       done
     );
+
+    done();
   } catch (error) {
     console.log(error);
   }
 });
+
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', () => {
   console.log('MONGO: successfully connected to db');
 });
 
-// // set node cron for settlement
+// set node cron for settlement
 // cron.schedule('* * * * *', async () => {
 //   await agencyWiseHostSettlement();
 //   console.log('Crone Done Successfully')

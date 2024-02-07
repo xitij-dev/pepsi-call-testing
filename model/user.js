@@ -26,7 +26,10 @@ const userSchema = new mongoose.Schema(
     gender: { type: String, default: '' },
     country: { type: String },
     coin: { type: Number, default: 0 },
+
     recentConnectionId: { type: String, default: null },
+    uniqueValue: { type: String, default: null }, //for call random uniqueValue
+
     purchageCoin: { type: Number, default: 0 },
     isReferral: { type: Boolean, default: false },
     storyView: { type: Number, default: 0 },

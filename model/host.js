@@ -33,7 +33,10 @@ const hostSchema = new mongoose.Schema(
     receiveCoin: { type: Number, default: 0 },
     receiveGift: { type: Number, default: 0 },
     identity: { type: String, default: null },
+
     recentConnectionId: { type: String, default: null },
+    uniqueValue: { type: String, default: null }, //for call random uniqueValue
+
     fcm_token: { type: String, default: null },
     gender: { type: String, default: null },
     age: { type: Number, default: 18 },
