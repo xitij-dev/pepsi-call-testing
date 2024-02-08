@@ -10,7 +10,7 @@
 /* eslint-disable no-global-assign */
 /* eslint-disable no-return-await */
 /* global io queue, userToUserCallIds */
-
+const mongoose = require('mongoose');
 const User = require('../../model/user');
 const Host = require('../../model/host');
 const Block = require('../../model/block');
@@ -23,6 +23,7 @@ const CallMatchUser = require('../../model/callMatchUser');
 const RandomMatchHost = require('../../model/randomMatchHost');
 const RandomUserUserCall = require('../../model/randomUserUserCall');
 const UserUserRandomCallArray = require('../../model/userUserRandomCallArray');
+const { userUpdateQueue, processHandler } = require('../../model/bullQueue');
 
 // Create a log file for today
 // const {
@@ -99,25 +100,32 @@ exports.match = async (req, res) => {
     }
 
     if (req?.query?.type === 'male' || req?.query?.type === 'both') {
-      res.status(200).json({
-        status: true,
-        message: 'Success',
-        uniqueId: `${user.name}:${req?.query?.userId}`,
+      console.log('........111111..', Date.now());
+
+      let result = await userUpdateQueue.add({
+        query: { 'objArray.userId': null },
+        update: { $set: { 'objArray.$.userId': user?._id.toString() } },
       });
-      const result = await UserUserRandomCallArray.updateOne(
-        { 'commanArray.userId': null },
-        { $set: { 'commanArray.$.userId': user?._id } }
-      );
-      if (!result?.modifiedCount > 0) {
+
+      result =  processHandler(result);
+
+
+      
+      console.log('........result..', Date.now(), result);
+
+      if (!((await result?.modifiedCount) > 0)) {
         console.log('........eeeeeeee..', Date.now());
         try {
           const result = await UserUserRandomCallArray.updateOne(
             {},
             {
               $push: {
-                commanArray: {
+                objArray: {
                   $each: [
-                    { userId: user?._id, uniqueValue: req.query.uniqueValue },
+                    {
+                      userId: user?._id.toString(),
+                      uniqueValue: req.query.uniqueValue,
+                    },
                     { userId: null, uniqueValue: req.query.uniqueValue },
                   ],
                 },
@@ -128,25 +136,30 @@ exports.match = async (req, res) => {
             'Document updated successfully in USERUSER-CALL:',
             result
           );
+          console.log('CREATE QUE FOR USER_USER CALL ===', Date.now());
+          const job = queue
+            .create('Pepsi-user-user-call-random', {
+              userId: req?.query?.userId,
+              type: req?.query?.type,
+              count: 0,
+              uniqueId: `${user.name}:${req?.query?.userId}`,
+              uniqueValue: req.query.uniqueValue,
+            })
+            .removeOnComplete(true)
+            .save(function (err) {
+              if (!err) {
+                console.log('Job Add In Random Queue With ID: ', job.id);
+              }
+            });
+
+          res.status(200).json({
+            status: true,
+            message: 'Success',
+            uniqueId: `${user.name}:${req?.query?.userId}`,
+          });
         } catch (err) {
           console.error('Error updating document:', err);
         }
-      } else {
-        console.log('CREATE QUE FOR USER_USER CALL ===', Date.now());
-        const job = queue
-          .create('Pepsi-user-user-call-random', {
-            userId: req?.query?.userId,
-            type: req?.query?.type,
-            count: 0,
-            uniqueId: `${user.name}:${req?.query?.userId}`,
-            uniqueValue: req.query.uniqueValue,
-          })
-          .removeOnComplete(true)
-          .save(function (err) {
-            if (!err) {
-              console.log('Job Add In Random Queue With ID: ', job.id);
-            }
-          });
       }
     }
   } catch (error) {
@@ -459,87 +472,103 @@ exports.randomMatchUser = async (
 ) => {
   try {
     console.log(
-      'randomMatchUser function called when queue for type MALE or BOTH ================================='
+      'randomMatchUser function called when queue for type MALE or BOTH =================================',
+      uniqueValue
     );
 
     const randomHostAvailable = await UserUserRandomCallArray.findOne({
-      'commanArray.uniqueValue': uniqueValue,
+      'objArray.uniqueValue': uniqueValue,
+      'objArray.userId': userId,
     });
-    let cArray = randomHostAvailable.commanArray;
     if (randomHostAvailable) {
-      const indices = [];
+      let cArray = randomHostAvailable.objArray;
+      if (randomHostAvailable) {
+        const indices = [];
 
-      for (let i = 0; i < cArray.length; i++) {
-        if (cArray[i].uniqueValue === uniqueValue) {
-          indices.push(i);
-          if (indices?.length == 2) break;
+        for (let i = 0; i < cArray.length; i++) {
+          if (cArray[i].uniqueValue === uniqueValue) {
+            indices.push(i);
+            if (indices?.length == 2) break;
+          }
         }
-      }
+        console.log('cArray : ', cArray?.length);
 
-      if (indices.length == 2) {
-        let user2Id =
-          cArray[indices[0]].userId?.toString() == userId
-            ? cArray[indices[1]].userId
-            : cArray[indices[0]].userId;
-        const user = await User.findById(userId);
-        const user2 = await User.findById(user2Id);
-        console.log(
-          'RANDOM MATCH USER FUNCTION USERS NAME ===========',
-          user?.uniqueValue,
-          user.name,
-          user2.name
-        );
-
-        const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let channel = '';
-        for (let i = 0; i < 8; i += 1) {
-          channel += randomChars.charAt(
-            Math.floor(Math.random() * randomChars.length)
+        console.log('indices : ', indices);
+        if (indices.length == 2) {
+          let user2Id =
+            cArray[indices[0]].userId?.toString() == userId
+              ? cArray[indices[1]].userId
+              : cArray[indices[0]].userId;
+          if (!user2Id) {
+            setTimeout(async () => {
+              return await this.randomMatchUserAgain(
+                userId,
+                type,
+                count,
+                uniqueId,
+                uniqueValue,
+                id,
+                done
+              );
+            }, 1000);
+            return;
+          }
+          const user = await User.findById(userId);
+          const user2 = await User.findById(user2Id);
+          console.log(
+            'RANDOM MATCH USER FUNCTION USERS NAME ===========',
+            user?.uniqueValue,
+            user.name,
+            user2.name
           );
-        }
 
-        const outgoing = new History();
+          const randomChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          let channel = '';
+          for (let i = 0; i < 8; i += 1) {
+            channel += randomChars.charAt(
+              Math.floor(Math.random() * randomChars.length)
+            );
+          }
 
-        outgoing.userId = user._id; // call user id
-        outgoing.type = 3;
-        outgoing.videoCallType = type;
-        outgoing.otherUserId = user2._id; // call receiver otherUser id
-        outgoing.date = new Date().toLocaleString('en-US', {
-          timeZone: 'Asia/Kolkata',
-        });
-        outgoing.caller = 'user';
-        outgoing.isRandom = true;
+          const outgoing = new History();
+          outgoing.userId = user._id; // call user id
+          outgoing.type = 3;
+          outgoing.videoCallType = type;
+          outgoing.otherUserId = user2._id; // call receiver otherUser id
+          outgoing.date = new Date().toLocaleString('en-US', {
+            timeZone: 'Asia/Kolkata',
+          });
+          outgoing.caller = 'user';
+          outgoing.isRandom = true;
 
-        const setting = await Setting.findOne({});
+          const setting = await Setting.findOne({});
 
-        const data = {
-          callerId: user._id.toString(),
-          receiverId: user2._id.toString(),
-          callerName: user.name,
-          receiverName: user2.name,
-          callerImage: user.image,
-          coin: user.callCharge,
-          randomCallCharge: setting.chargeForMatchFemale,
-          token: '',
-          channel,
-          live: user.isLive,
-          callId: outgoing._id,
-          uniqueValue, //caller uniqueValue
-          callType: 'random',
-          type: 'user',
-          jobId: 1212,
-        };
-        const callMatchUser1Verify = await RandomMatchHost.findOne({
-          userId: user._id,
-          $or: [{ type: 'both' }, { type: 'male' }],
-        });
-
-        const callMatchUser2Verify = await RandomMatchHost.findOne({
-          userId: user2._id,
-          $or: [{ type: 'both' }, { type: 'male' }],
-        });
-        if (callMatchUser1Verify) {
-          if (callMatchUser2Verify) {
+          const data = {
+            callerId: user._id.toString(),
+            receiverId: user2._id.toString(),
+            callerName: user.name,
+            receiverName: user2.name,
+            callerImage: user.image,
+            coin: user.callCharge,
+            randomCallCharge: setting.chargeForMatchFemale,
+            token: '',
+            channel,
+            live: user.isLive,
+            callId: outgoing._id,
+            uniqueValue, //caller uniqueValue
+            callType: 'random',
+            type: 'user',
+            jobId: 1212,
+          };
+          const callMatchUser1Verify = await RandomMatchHost.findOne({
+            userId: user._id,
+            $or: [{ type: 'both' }, { type: 'male' }],
+          });
+          const callMatchUser2Verify = await RandomMatchHost.findOne({
+            userId: user2._id,
+            $or: [{ type: 'both' }, { type: 'male' }],
+          });
+          if (callMatchUser1Verify && callMatchUser2Verify) {
             await outgoing.save();
             user.isBusy = true;
             user.recentConnectionId = outgoing._id;
@@ -551,13 +580,21 @@ exports.randomMatchUser = async (
             user2.uniqueValue = uniqueValue; //caller uniqueValue
             await user2.save();
 
-            const socket1 = io
-              .in(`globalRoom:${outgoing.userId.toString()}`)
-              .fetchSockets();
-            const socket2 = io
-              .in(`globalRoom:${outgoing.otherUserId.toString()}`)
-              .fetchSockets();
+            // io.sockets
+            //   .in('globalRoom:' + user._id.toString())
+            //   .emit('userUserCall', data, null);
 
+            // io.sockets
+            //   .in('globalRoom:' + user2._id.toString())
+            //   .emit('userUserCall', data, null);
+
+            const socket1 = await io
+              .in('globalRoom:' + user._id.toString())
+              .fetchSockets();
+            const socket2 = await io
+              .in('globalRoom:' + user2._id.toString())
+              .fetchSockets();
+            console.log('sockets: ', socket1?.length, socket2?.length);
             socket1?.length
               ? socket1[0].join(outgoing._id?.toString())
               : console.log('socket1 not able to join');
@@ -565,120 +602,119 @@ exports.randomMatchUser = async (
               ? socket2[0].join(outgoing._id?.toString())
               : console.log('socket2 not able to join');
 
-            io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
+            const callMatchUser1Verify = await RandomMatchHost.findOne({
+              userId: user._id,
+              $or: [{ type: 'both' }, { type: 'male' }],
+            });
+            const callMatchUser2Verify = await RandomMatchHost.findOne({
+              userId: user2._id,
+              $or: [{ type: 'both' }, { type: 'male' }],
+            });
+            if (callMatchUser1Verify && callMatchUser2Verify) {
+              io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
+              done();
+              return;
+            } else {
+              if (callMatchUser1Verify) {
+                console.log('queStartAgain 111 : ', user?.name);
+                io.in('globalRoom:' + user._id?.toString()).emit(
+                  'queStartAgain',
+                  'start'
+                );
+              } else if (callMatchUser2Verify) {
+                console.log('queStartAgain 111: ', user2?.name);
+                io.in('globalRoom:' + user2._id?.toString()).emit(
+                  'queStartAgain',
+                  'start'
+                );
+              }
+              done();
+              return;
+            }
+          } else {
+            if (callMatchUser1Verify) {
+              console.log('queStartAgain : ', user?.name);
+              io.in('globalRoom:' + user._id?.toString()).emit(
+                'queStartAgain',
+                'start'
+              );
+            } else if (callMatchUser2Verify) {
+              console.log('queStartAgain : ', user2?.name);
+              io.in('globalRoom:' + user2._id?.toString()).emit(
+                'queStartAgain',
+                'start'
+              );
+            }
             done();
+            return;
           }
-        }else{
-          
+        } else {
+          setTimeout(async () => {
+            return await this.randomMatchUserAgain(
+              userId,
+              type,
+              count,
+              uniqueId,
+              uniqueValue,
+              id,
+              done
+            );
+          }, 1000);
         }
       } else {
-        setTimeout(async () => {
-          return await this.randomMatchUserAgain(
-            userId,
-            type,
-            count,
-            uniqueId,
-            uniqueValue,
-            id,
-            done
-          );
-        }, 1000);
-      }
+        console.log('No randomHostAvailable  ==============');
 
-      user.isBusy = true;
-      user.recentConnectionId = outgoing._id;
-      user.uniqueValue = uniqueValue; //caller uniqueValue
-      await user.save();
-
-      user2.isBusy = true;
-      user2.recentConnectionId = outgoing._id;
-      user2.uniqueValue = uniqueValue; //caller uniqueValue
-      await user2.save();
-
-      const [socket1, socket2] = await Promise.all([
-        io.in(`globalRoom:${outgoing.userId.toString()}`).fetchSockets(),
-        io.in(`globalRoom:${outgoing.otherUserId.toString()}`),
-      ]);
-
-      socket1?.length
-        ? socket1[0].join(outgoing._id?.toString())
-        : console.log('socket1 not able to emit');
-      socket2?.length
-        ? socket2[0].join(outgoing._id?.toString())
-        : console.log('socket2 not able to emit');
-
-      const callMatchUser1Verify = await RandomMatchHost.findOne({
-        userId: user._id,
-        $or: [{ type: 'both' }, { type: 'male' }],
-      });
-
-      const callMatchUser2Verify = await RandomMatchHost.findOne({
-        userId: randomHostAvailable.userId,
-        $or: [{ type: 'both' }, { type: 'male' }],
-      });
-
-      if (callMatchUser1Verify && callMatchUser2Verify) {
-        console.log(
-          'verify user 1 ============================================ , ',
-          callMatchUser1Verify.userId,
-          callMatchUser1Verify.type
-        );
-
-        console.log(
-          'verify user 2 ============================================ , ',
-          callMatchUser2Verify.userId,
-          callMatchUser2Verify.type
-        );
-
-        io.in(outgoing._id?.toString()).emit('userUserCall', data, null);
-        done();
-
-        await callMatchUser1Verify.deleteOne();
-        await callMatchUser2Verify.deleteOne();
-
-        console.log(
-          'callConnect ============================================',
+        return await this.randomMatchUserAgain(
           userId,
-          outgoing.otherUserId
+          type,
+          count,
+          uniqueId,
+          uniqueValue,
+          id,
+          done
         );
-
-        await History.updateOne(
-          { _id: outgoing._id },
-          {
-            $set: {
-              callConnect: true,
-              callStartTime: new Date().toLocaleString('en-US', {
-                timeZone: 'Asia/Kolkata',
-              }),
-            },
-          }
-        );
-      } else {
-        console.log('not verify ============================================');
-        done();
-
-        user.isBusy = false;
-        user.recentConnectionId = null;
-        user.uniqueValue = null;
-        user.save();
-
-        user2.isBusy = false;
-        user2.recentConnectionId = null;
-        user2.uniqueValue = null;
-        user2.save();
       }
     } else {
-      console.log('No randomHostAvailable  ==============');
+      const randomHostAvailable = await UserUserRandomCallArray.findOne({
+        'objArray.uniqueValue': uniqueValue,
+      });
+      if (randomHostAvailable) {
+        let cArray = randomHostAvailable.objArray;
+        if (randomHostAvailable) {
+          const indices = [];
 
-      return await this.randomMatchUserAgain(
-        userId,
-        type,
-        count,
-        uniqueId,
-        uniqueValue,
-        id,
-        done
+          for (let i = 0; i < cArray.length; i++) {
+            if (cArray[i].uniqueValue === uniqueValue) {
+              indices.push(i);
+              if (indices?.length == 1) break;
+            }
+          }
+          console.log('cArray : ', cArray?.length);
+
+          console.log('indices : ', indices);
+          let user2Id = cArray[indices[0]].userId?.toString();
+          console.log(
+            'queStartAgain QUE DONE ===============================',
+            user2Id
+          );
+          io.in('globalRoom:' + user2Id).emit('queStartAgain', 'start');
+          await UserUserRandomCallArray.updateOne(
+            {},
+            {
+              $pull: {
+                objArray: {
+                  uniqueValue: uniqueValue,
+                },
+              },
+            }
+          );
+        }
+      }
+      console.log(
+        'QUE DONE IN STARTING  =================================',
+        uniqueValue
       );
+      done();
     }
   } catch (error) {
     done(error);
@@ -698,6 +734,7 @@ exports.randomMatchUserAgain = async (
 ) => {
   const randomMatchHostVerify = await RandomMatchHost.findOne({
     userId: userId,
+    $or: [{ type: 'both' }, { type: 'male' }],
   });
 
   if (!randomMatchHostVerify) {
@@ -706,18 +743,17 @@ exports.randomMatchUserAgain = async (
       randomMatchHostVerify
     );
     done();
+    return;
   } else {
     console.log(
       'randomMatchHostVerify in randomMatchAgain function ========================='
     );
-
     await this.randomMatchUser(
       userId,
       type,
       count,
       uniqueId,
       uniqueValue,
-      randomUserUserCall,
       id,
       done
     );
